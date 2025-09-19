@@ -1,22 +1,23 @@
-import express from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 import { StockScraper } from '../services/stockScraper.js';
 import { FinancialCalculator } from '../services/financialCalculator.js';
+// Validation middleware'leri gerektiğinde import edilecek
+import { stockDataCache, analysisCache, priceCache } from '../middleware/cache.js';
 
-const router = express.Router();
+const router = Router();
 const stockScraper = new StockScraper();
 const financialCalculator = new FinancialCalculator();
 
 // Rate limiting
 const rateLimiter = new RateLimiterMemory({
-  keyGenerator: (req) => req.ip,
-  points: 100, // İstek sayısı
-  duration: 900, // 15 dakika (saniye cinsinden)
+  points: 10,
+  duration: 60,
 });
 
-const rateLimitMiddleware = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+const rateLimitMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    await rateLimiter.consume(req.ip);
+    await rateLimiter.consume(req.ip || 'unknown');
     next();
   } catch (rejRes) {
     res.status(429).json({ error: 'Çok fazla istek gönderildi, lütfen daha sonra tekrar deneyin.' });
@@ -24,29 +25,30 @@ const rateLimitMiddleware = async (req: express.Request, res: express.Response, 
 };
 
 // Hisse kodu doğrulama middleware
-const validateStockCode = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+const validateStockCodeLocal = (req: Request, res: Response, next: NextFunction): void => {
   const { stockCode } = req.params;
   
-  if (!stockCode || stockCode.length < 3 || stockCode.length > 6) {
-    return res.status(400).json({
-      error: 'Geçersiz hisse kodu. 3-6 karakter arası olmalıdır.',
-      example: 'THYAO'
+  if (!stockCode || stockCode.length < 2) {
+    res.status(400).json({
+      error: 'Geçersiz hisse kodu',
+      message: 'Hisse kodu en az 2 karakter olmalıdır'
     });
+    return;
   }
   
-  // Sadece harf ve sayı içermeli
-  if (!/^[A-Za-z0-9]+$/.test(stockCode)) {
-    return res.status(400).json({
-      error: 'Hisse kodu sadece harf ve sayı içermelidir.',
-      example: 'THYAO'
+  if (!/^[A-Z0-9]+$/.test(stockCode.toUpperCase())) {
+    res.status(400).json({
+      error: 'Geçersiz hisse kodu formatı',
+      message: 'Hisse kodu sadece harf ve rakam içerebilir'
     });
+    return;
   }
   
   next();
 };
 
 // Popüler hisse kodları listesi
-router.get('/popular', rateLimitMiddleware, (req, res) => {
+router.get('/popular', rateLimitMiddleware, (_req, res) => {
   try {
     const popularStocks = stockScraper.getPopularStocks();
     res.json({
@@ -64,7 +66,7 @@ router.get('/popular', rateLimitMiddleware, (req, res) => {
 });
 
 // Hisse kodu doğrulama
-router.get('/validate/:stockCode', rateLimitMiddleware, validateStockCode, async (req, res) => {
+router.get('/validate/:stockCode', rateLimitMiddleware, validateStockCodeLocal, async (req, res) => {
   try {
     const { stockCode } = req.params;
     const isValid = await stockScraper.validateStockCode(stockCode);
@@ -85,16 +87,17 @@ router.get('/validate/:stockCode', rateLimitMiddleware, validateStockCode, async
 });
 
 // Hisse fiyat bilgisi
-router.get('/price/:stockCode', rateLimitMiddleware, validateStockCode, async (req, res) => {
+router.get('/price/:stockCode', rateLimitMiddleware, priceCache, validateStockCodeLocal, async (req, res): Promise<void> => {
   try {
     const { stockCode } = req.params;
     const priceData = await stockScraper.scrapeStockPrice(stockCode);
     
     if (!priceData) {
-      return res.status(404).json({
+      res.status(404).json({
         error: 'Hisse fiyat bilgisi bulunamadı',
         stockCode: stockCode.toUpperCase()
       });
+      return;
     }
     
     res.json({
@@ -111,17 +114,18 @@ router.get('/price/:stockCode', rateLimitMiddleware, validateStockCode, async (r
 });
 
 // Mali tablo verisi
-router.get('/financial/:stockCode', rateLimitMiddleware, validateStockCode, async (req, res) => {
+router.get('/financial/:stockCode', rateLimitMiddleware, stockDataCache, validateStockCodeLocal, async (req, res): Promise<void> => {
   try {
     const { stockCode } = req.params;
     const financialData = await stockScraper.scrapeFinancialData(stockCode);
     
     if (!financialData) {
-      return res.status(404).json({
+      res.status(404).json({
         error: 'Mali tablo verisi bulunamadı',
         stockCode: stockCode.toUpperCase(),
         suggestion: 'Hisse kodunu kontrol ediniz veya daha sonra tekrar deneyiniz'
       });
+      return;
     }
     
     res.json({
@@ -138,7 +142,7 @@ router.get('/financial/:stockCode', rateLimitMiddleware, validateStockCode, asyn
 });
 
 // Finansal analiz (mali tablo + hesaplamalar)
-router.get('/analysis/:stockCode', rateLimitMiddleware, validateStockCode, async (req, res) => {
+router.get('/analysis/:stockCode', rateLimitMiddleware, analysisCache, validateStockCodeLocal, async (req, res): Promise<void> => {
   try {
     const { stockCode } = req.params;
     
@@ -146,11 +150,12 @@ router.get('/analysis/:stockCode', rateLimitMiddleware, validateStockCode, async
     const financialData = await stockScraper.scrapeFinancialData(stockCode);
     
     if (!financialData) {
-      return res.status(404).json({
+      res.status(404).json({
         error: 'Mali tablo verisi bulunamadı',
         stockCode: stockCode.toUpperCase(),
         suggestion: 'Hisse kodunu kontrol ediniz veya daha sonra tekrar deneyiniz'
       });
+      return;
     }
     
     // Finansal analizi hesapla
@@ -170,7 +175,7 @@ router.get('/analysis/:stockCode', rateLimitMiddleware, validateStockCode, async
 });
 
 // Kapsamlı hisse bilgisi (fiyat + mali tablo + analiz)
-router.get('/comprehensive/:stockCode', rateLimitMiddleware, validateStockCode, async (req: express.Request, res: express.Response) => {
+router.get('/comprehensive/:stockCode', rateLimitMiddleware, validateStockCodeLocal, async (req, res): Promise<void> => {
   try {
     const { stockCode } = req.params;
     
@@ -181,11 +186,12 @@ router.get('/comprehensive/:stockCode', rateLimitMiddleware, validateStockCode, 
     ]);
     
     if (!financialData) {
-      return res.status(404).json({
+      res.status(404).json({
         error: 'Hisse verisi bulunamadı',
         stockCode: stockCode.toUpperCase(),
         suggestion: 'Hisse kodunu kontrol ediniz veya daha sonra tekrar deneyiniz'
       });
+      return;
     }
     
     // Finansal analizi hesapla
@@ -210,22 +216,24 @@ router.get('/comprehensive/:stockCode', rateLimitMiddleware, validateStockCode, 
 });
 
 // Çoklu hisse analizi
-router.post('/batch-analysis', rateLimitMiddleware, async (req: express.Request, res: express.Response) => {
+router.post('/batch-analysis', rateLimitMiddleware, async (req, res): Promise<void> => {
   try {
     const { stockCodes } = req.body;
     
     if (!Array.isArray(stockCodes) || stockCodes.length === 0) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'stockCodes dizisi gereklidir',
         example: { stockCodes: ['THYAO', 'AKBNK', 'BIMAS'] }
       });
+      return;
     }
     
     if (stockCodes.length > 10) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Maksimum 10 hisse kodu analiz edilebilir',
         received: stockCodes.length
       });
+      return;
     }
     
     // Her hisse için analiz yap
@@ -272,7 +280,7 @@ router.post('/batch-analysis', rateLimitMiddleware, async (req: express.Request,
 });
 
 // Sektör karşılaştırması
-router.get('/sector-benchmarks', rateLimitMiddleware, async (req: express.Request, res: express.Response) => {
+router.get('/sector-benchmarks', rateLimitMiddleware, async (_req, res) => {
   try {
     const benchmarks = financialCalculator.getSectorBenchmarks();
     res.json({
@@ -289,7 +297,7 @@ router.get('/sector-benchmarks', rateLimitMiddleware, async (req: express.Reques
 });
 
 // Hata yakalama middleware
-router.use((error: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+router.use((error: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error('Stocks router hatası:', error);
   res.status(500).json({
     error: 'Sunucu hatası',

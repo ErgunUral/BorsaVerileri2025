@@ -29,16 +29,29 @@ export interface StockPrice {
   lastUpdated: Date;
 }
 
-class StockScraper {
+export class StockScraper {
   private baseUrl = 'https://www.isyatirim.com.tr/tr-tr/analiz/hisse/Sayfalar/sirket-karti.aspx';
   private browser: any = null;
 
   async initBrowser() {
     if (!this.browser) {
       this.browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-      });
+      headless: 'new',
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu',
+        '--disable-web-security',
+        '--disable-features=VizDisplayCompositor'
+      ],
+      timeout: 120000,
+      protocolTimeout: 120000
+    });
     }
     return this.browser;
   }
@@ -72,19 +85,64 @@ class StockScraper {
   }
 
   // Mali tablo verilerini çek
-  async scrapeFinancialData(stockCode: string): Promise<FinancialData | null> {
+  async scrapeFinancialData(stockCode: string, retryCount: number = 0): Promise<FinancialData | null> {
+    const maxRetries = 3;
+    
+    // Önce axios ile deneme
+    try {
+      console.log(`${stockCode} için axios ile veri çekiliyor (Deneme: ${retryCount + 1})`);
+      const url = `${this.baseUrl}?hisse=${stockCode.toUpperCase()}`;
+      
+      const response = await axios.get(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'tr-TR,tr;q=0.8,en-US;q=0.5,en;q=0.3',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1'
+        },
+        timeout: 30000
+      });
+      
+      if (response.data) {
+        const $ = cheerio.load(response.data);
+        const companyName = $('.company-name, .sirket-adi, h1').first().text().trim() || 
+                           $('title').text().split('-')[0].trim() ||
+                           stockCode.toUpperCase();
+        
+        const financialData = await this.extractFinancialData($, stockCode, companyName);
+        if (financialData) {
+          console.log(`✅ ${stockCode} verisi axios ile başarıyla çekildi`);
+          return financialData;
+        }
+      }
+    } catch (axiosError: any) {
+      console.log(`Axios hatası ${stockCode}: ${axiosError.message}`);
+    }
+
+    // Axios başarısız olursa Puppeteer ile deneme
     let page = null;
+    
     try {
       const browser = await this.initBrowser();
       page = await browser.newPage();
       
-      // User agent ayarla
-      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+      // Sayfa ayarları
+      await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+      await page.setViewport({ width: 1366, height: 768 });
       
       const url = `${this.baseUrl}?hisse=${stockCode.toUpperCase()}`;
-      console.log(`Mali tablo verisi çekiliyor: ${url}`);
+      console.log(`Mali tablo verisi Puppeteer ile çekiliyor: ${url} (Deneme: ${retryCount + 1})`);
       
-      await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+      // Sayfa yükleme
+      await page.goto(url, { 
+        waitUntil: 'domcontentloaded', 
+        timeout: 60000 
+      });
+      
+      // Sayfanın yüklenmesini bekle
+      await page.waitForTimeout(3000);
       
       // Mali tablo sekmesine tıkla
       try {
@@ -100,23 +158,34 @@ class StockScraper {
       
       // Şirket adını al
       const companyName = $('.company-name, .sirket-adi, h1').first().text().trim() || 
-                         $('title').text().split('-')[0].trim();
+                         $('title').text().split('-')[0].trim() ||
+                         stockCode.toUpperCase();
       
-      if (!companyName) {
-        throw new Error('Şirket adı bulunamadı');
-      }
+      console.log(`Şirket adı bulundu: ${companyName}`);
 
       // Mali tablo verilerini çıkar
       const financialData = await this.extractFinancialData($, stockCode, companyName);
       
       return financialData;
       
-    } catch (error) {
-      console.error(`Mali tablo çekme hatası ${stockCode}:`, error);
+    } catch (error: any) {
+      console.error(`Mali tablo çekme hatası ${stockCode} (Deneme ${retryCount + 1}):`, error.message);
+      
+      // Retry mekanizması
+      if (retryCount < maxRetries) {
+        console.log(`${stockCode} için ${retryCount + 2}. deneme yapılıyor...`);
+        await new Promise(resolve => setTimeout(resolve, 2000 * (retryCount + 1))); // Exponential backoff
+        return this.scrapeFinancialData(stockCode, retryCount + 1);
+      }
+      
       return null;
     } finally {
       if (page) {
-        await page.close();
+        try {
+          await page.close();
+        } catch (e: any) {
+          console.log('Sayfa kapatma hatası:', e.message);
+        }
       }
     }
   }
@@ -268,7 +337,7 @@ class StockScraper {
       for (const selector of selectorList) {
         const elements = $(selector);
         
-        elements.each((i, element) => {
+        elements.each((_i, element) => {
           if (value > 0) return; // Değer bulunduysa devam etme
           
           const $el = $(element);
@@ -313,7 +382,7 @@ class StockScraper {
     if (data.totalAssets === 0) {
       // Tüm sayısal değerleri bul ve en büyüğünü toplam aktif olarak kabul et
       const allNumbers: number[] = [];
-      $('td').each((i, el) => {
+      $('td').each((_i, el) => {
         const text = $(el).text().trim();
         const num = this.parseNumber(text);
         if (num > 1000000) { // 1 milyon üzeri değerler
@@ -403,5 +472,4 @@ class StockScraper {
   }
 }
 
-export { StockScraper };
-export default new StockScraper();
+export default StockScraper;

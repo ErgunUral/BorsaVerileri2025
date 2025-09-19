@@ -44,6 +44,9 @@ const StockSearch: React.FC<StockSearchProps> = ({ onStockSelect }) => {
     socketRef.current = io('http://localhost:9876');
     
     socketRef.current.on('stock-data', (data: StockData) => {
+      console.log('StockSearch - Socket\'ten gelen veri:', data);
+      console.log('StockSearch - Finansal veriler:', data.analysis?.financialData);
+      
       setIsLoading(false);
       setError(null);
       onStockSelect(data);

@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { io, Socket } from 'socket.io-client';
-import StockSearch from './components/StockSearch';
-import StockAnalysis from './components/StockAnalysis';
-import { TrendingUp, Wifi, WifiOff, AlertCircle, Loader2 } from 'lucide-react';
+import { TrendingUp, AlertCircle, Loader2 } from 'lucide-react';
+import ErrorBoundary from './components/ErrorBoundary';
+
+// Lazy load components
+const StockSearch = lazy(() => import('./components/StockSearch'));
+const StockAnalysis = lazy(() => import('./components/StockAnalysis'));
 
 interface StockData {
   stockCode: string;
@@ -25,8 +28,8 @@ interface StockData {
 }
 
 function App() {
-  const [socket, setSocket] = useState<Socket | null>(null);
-  const [selectedStock, setSelectedStock] = useState<string>('');
+  const [, setSocket] = useState<Socket | null>(null);
+  const [selectedStock] = useState<string>('');
   const [stockData, setStockData] = useState<StockData | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
@@ -54,8 +57,11 @@ function App() {
     });
 
     // Gerçek zamanlı hisse verisi güncellemeleri
-    newSocket.on('stockUpdate', (data: StockData) => {
-      if (data.stockCode === selectedStock) {
+    newSocket.on('stock-data', (data: StockData) => {
+      console.log('Hisse verisi alındı:', data.stockCode);
+      console.log('Finansal veri detayları:', data.analysis?.financialData);
+      console.log('Finansal veri key\'leri:', Object.keys(data.analysis?.financialData || {}));
+      if (selectedStock === data.stockCode) {
         setStockData(data);
       }
     });
@@ -69,6 +75,9 @@ function App() {
 
   const handleStockSelect = (stockData: StockData) => {
     if (!stockData) return;
+    
+    console.log('App - Seçilen hisse verisi:', stockData);
+    console.log('App - Finansal veriler:', stockData.analysis?.financialData);
     
     setStockData(stockData);
     setError('');
@@ -124,9 +133,15 @@ function App() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Search Section */}
         <div className="mb-8">
-          <StockSearch 
-            onStockSelect={handleStockSelect}
-          />
+          <Suspense fallback={
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+            </div>
+          }>
+            <StockSearch 
+              onStockSelect={handleStockSelect}
+            />
+          </Suspense>
         </div>
 
         {/* Loading State */}
@@ -149,7 +164,11 @@ function App() {
                 <h3 className="text-lg font-medium text-red-800">Hata Oluştu</h3>
                 <p className="text-red-700 mt-1">{error}</p>
                 <button 
-                  onClick={() => selectedStock && handleStockSelect(selectedStock)}
+                  onClick={() => {
+                    if (selectedStock && stockData) {
+                      handleStockSelect(stockData);
+                    }
+                  }}
                   className="mt-3 text-sm text-red-600 hover:text-red-800 underline"
                 >
                   Tekrar dene
@@ -161,7 +180,16 @@ function App() {
 
         {/* Stock Analysis */}
         {stockData && !loading && (
-          <StockAnalysis stockData={stockData} />
+          <ErrorBoundary>
+            <Suspense fallback={
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                <span className="ml-2 text-gray-600">Analiz yükleniyor...</span>
+              </div>
+            }>
+              <StockAnalysis stockData={stockData} />
+            </Suspense>
+          </ErrorBoundary>
         )}
 
         {/* Welcome Message */}

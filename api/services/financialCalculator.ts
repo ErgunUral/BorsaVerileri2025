@@ -32,7 +32,7 @@ export interface AnalysisResult {
   investmentScore: number; // 0-100 arası
 }
 
-class FinancialCalculator {
+export class FinancialCalculator {
   
   // Ana analiz fonksiyonu
   calculateAnalysis(data: FinancialData): AnalysisResult {
@@ -323,5 +323,5 @@ class FinancialCalculator {
   }
 }
 
-export { FinancialCalculator };
+
 export default new FinancialCalculator();

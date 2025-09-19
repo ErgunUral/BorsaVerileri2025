@@ -1,35 +1,162 @@
 import express from 'express';
 import cors from 'cors';
-import { createServer } from 'http';
-import { Server } from 'socket.io';
-import authRoutes from './routes/auth';
-import stockRoutes from './routes/stocks';
-import stockScraper from './services/stockScraper';
-import financialCalculator from './services/financialCalculator';
+import helmet from 'helmet';
+import { RateLimiterMemory } from 'rate-limiter-flexible';
+import dotenv from 'dotenv';
+import authRoutes from './routes/auth.js';
+import stockRoutes from './routes/stocks.js';
+import logRoutes from './routes/logs.js';
+import portMonitorRoutes from './routes/portMonitor.js';
+import { StockScraper } from './services/stockScraper.js';
+
+import { FinancialCalculator } from './services/financialCalculator.js';
+import apiProvider from './services/apiProvider.js';
+
+import { securityHeaders, sanitizeInput } from './middleware/validation.js';
+import { errorHandler, notFoundHandler, handleUnhandledRejection, handleUncaughtException } from './middleware/errorHandler.js';
+import { performanceMiddleware, healthCheck, metricsEndpoint, requestLogger } from './middleware/monitoring.js';
+
+const stockScraper = new StockScraper();
+const financialCalculator = new FinancialCalculator();
+
+// Load environment variables
+dotenv.config();
 
 const app = express();
-const server = createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: "http://localhost:8765",
-    methods: ["GET", "POST"]
+
+const PORT = process.env['PORT'] || 3001;
+const FRONTEND_URL = process.env['FRONTEND_URL'] || 'http://localhost:5173';
+const NODE_ENV = process.env['NODE_ENV'] || 'development';
+
+// Setup global error handlers
+handleUnhandledRejection();
+handleUncaughtException();
+
+// Rate Limiter
+const rateLimiter = new RateLimiterMemory({
+  points: parseInt(process.env['RATE_LIMIT_MAX_REQUESTS'] || '100'),
+  duration: parseInt(process.env['RATE_LIMIT_WINDOW_MS'] || '900000') / 1000,
+});
+
+// Security Middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+}));
+
+// Performance and logging middleware
+app.use(performanceMiddleware);
+app.use(requestLogger);
+
+// Custom security headers
+app.use(securityHeaders);
+
+// Input sanitization
+app.use(sanitizeInput);
+
+// Rate limiting middleware
+app.use(async (req, res, next) => {
+  try {
+    await rateLimiter.consume(req.ip || 'unknown');
+    next();
+  } catch (rejRes) {
+    res.status(429).json({
+      error: 'Too many requests',
+      retryAfter: Math.round((rejRes as any).msBeforeNext / 1000)
+    });
   }
 });
 
-const PORT = process.env.PORT || 9876;
-const FRONTEND_URL = 'http://localhost:8765';
+// CORS Configuration
+app.use(cors({
+  origin: (origin, callback) => {
+    const allowedOrigins = NODE_ENV === 'production' 
+      ? [FRONTEND_URL] 
+      : [FRONTEND_URL, 'http://localhost:3000', 'http://localhost:8765', 'http://127.0.0.1:8765'];
+    
+    // Allow requests with no origin (mobile apps, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS policy violation'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['X-Total-Count'],
+  maxAge: 86400 // 24 hours
+}));
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Body parsing middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Health check endpoint
+app.get('/health', (_req, res) => {
+  const healthCheck = {
+    uptime: process.uptime(),
+    message: 'OK',
+    timestamp: Date.now(),
+    environment: process.env['NODE_ENV'] || 'development',
+    version: process.env['npm_package_version'] || '1.0.0',
+    memory: process.memoryUsage(),
+    providers: {} // Will be populated by provider health checks
+  };
+  
+  try {
+    res.status(200).json(healthCheck);
+  } catch (error) {
+    healthCheck.message = 'ERROR';
+    res.status(503).json(healthCheck);
+  }
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/stocks', stockRoutes);
+app.use('/api/logs', logRoutes);
+app.use('/api/port-monitor', portMonitorRoutes);
+
+// Health and monitoring routes
+app.get('/api/health', healthCheck);
+app.get('/api/metrics', metricsEndpoint);
+
+// Cache management routes
+app.get('/api/cache/stats', (req, res) => {
+  const { getCacheStats } = require('./middleware/cache.js');
+  getCacheStats(req, res);
+});
+
+app.delete('/api/cache/clear', (_req, res) => {
+  const { cache } = require('./middleware/cache.js');
+  cache.clear();
+  res.json({ success: true, message: 'Cache cleared successfully' });
+});
+
+app.delete('/api/cache/invalidate/:pattern', (req, res) => {
+  const { cache } = require('./middleware/cache.js');
+  const { pattern } = req.params;
+  const stats = cache.getStats();
+  const keysToDelete = stats.keys.filter((key: string) => key.includes(pattern));
+  keysToDelete.forEach((key: string) => cache.delete(key));
+  res.json({ 
+    success: true, 
+    message: `Invalidated ${keysToDelete.length} cache entries matching pattern '${pattern}'`,
+    deletedKeys: keysToDelete
+  });
+});
 
 // Ana sayfa
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
   res.json({
     message: 'Borsa Hisse Mali Tablo Analiz Sistemi API',
     version: '1.0.0',
@@ -42,122 +169,24 @@ app.get('/', (req, res) => {
   });
 });
 
-// Socket.IO connection handling
-io.on('connection', (socket) => {
-  console.log('Kullanıcı bağlandı:', socket.id);
-  
-  // Gerçek zamanlı hisse verisi istekleri
-  socket.on('subscribe-stock', async (stockCode: string) => {
-    try {
-      console.log(`${socket.id} kullanıcısı ${stockCode} hissesine abone oldu`);
-      
-      // Hemen ilk veriyi gönder
-      const [priceData, financialData] = await Promise.all([
-        stockScraper.scrapeStockPrice(stockCode),
-        stockScraper.scrapeFinancialData(stockCode)
-      ]);
-      
-      if (financialData) {
-        const analysis = financialCalculator.calculateAnalysis(financialData);
-        
-        socket.emit('stock-data', {
-          stockCode: stockCode.toUpperCase(),
-          price: priceData,
-          analysis,
-          timestamp: new Date().toISOString()
-        });
-        
-        // Socket'i ilgili odaya ekle
-        socket.join(`stock-${stockCode.toUpperCase()}`);
-      } else {
-        socket.emit('stock-error', {
-          stockCode: stockCode.toUpperCase(),
-          error: 'Hisse verisi bulunamadı'
-        });
-      }
-    } catch (error) {
-      console.error('Socket hisse verisi hatası:', error);
-      socket.emit('stock-error', {
-        stockCode: stockCode.toUpperCase(),
-        error: 'Veri çekme hatası'
-      });
-    }
-  });
-  
-  // Hisse aboneliğini iptal et
-  socket.on('unsubscribe-stock', (stockCode: string) => {
-    console.log(`${socket.id} kullanıcısı ${stockCode} aboneliğini iptal etti`);
-    socket.leave(`stock-${stockCode.toUpperCase()}`);
-  });
-  
-  // Çoklu hisse aboneliği
-  socket.on('subscribe-multiple', async (stockCodes: string[]) => {
-    try {
-      if (!Array.isArray(stockCodes) || stockCodes.length > 5) {
-        socket.emit('error', 'Maksimum 5 hisse takip edilebilir');
-        return;
-      }
-      
-      for (const stockCode of stockCodes) {
-        socket.join(`stock-${stockCode.toUpperCase()}`);
-      }
-      
-      socket.emit('subscriptions-updated', {
-        subscribed: stockCodes.map(code => code.toUpperCase()),
-        count: stockCodes.length
-      });
-    } catch (error) {
-      socket.emit('error', 'Çoklu abonelik hatası');
-    }
-  });
-  
-  socket.on('disconnect', () => {
-    console.log('Kullanıcı ayrıldı:', socket.id);
-  });
-});
+// 404 handler - must be after all routes
+app.use(notFoundHandler);
 
-// Periyodik veri güncelleme (5 dakikada bir)
-setInterval(async () => {
-  const rooms = io.sockets.adapter.rooms;
-  
-  for (const [roomName] of rooms) {
-    if (roomName.startsWith('stock-')) {
-      const stockCode = roomName.replace('stock-', '');
-      
-      try {
-        const [priceData, financialData] = await Promise.all([
-          stockScraper.scrapeStockPrice(stockCode),
-          stockScraper.scrapeFinancialData(stockCode)
-        ]);
-        
-        if (financialData) {
-          const analysis = financialCalculator.calculateAnalysis(financialData);
-          
-          io.to(roomName).emit('stock-update', {
-            stockCode,
-            price: priceData,
-            analysis,
-            timestamp: new Date().toISOString()
-          });
-        }
-      } catch (error) {
-        console.error(`Periyodik güncelleme hatası ${stockCode}:`, error);
-      }
-    }
-  }
-}, 5 * 60 * 1000); // 5 dakika
+// Global error handler - must be last
+app.use(errorHandler);
+
+// Socket.IO functionality is handled by separate socket-server.ts
+
+// Periodic data updates are handled by separate socket-server.ts
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-  console.log('Server kapatılıyor...');
+  console.log('API Server kapatılıyor...');
   await stockScraper.closeBrowser();
-  server.close(() => {
-    console.log('Server kapatıldı');
-    process.exit(0);
-  });
+  process.exit(0);
 });
 
-server.listen(PORT, () => {
-  console.log(`Server ${PORT} portunda çalışıyor`);
-  console.log(`WebSocket bağlantısı: ws://localhost:${PORT}`);
+app.listen(PORT, () => {
+  console.log(`🚀 API Server ${PORT} portunda çalışıyor`);
+  console.log(`📡 Socket.IO Server ayrı olarak 9876 portunda çalışıyor`);
 });

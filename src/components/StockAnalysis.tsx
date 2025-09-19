@@ -57,7 +57,7 @@ interface StockData {
 }
 
 interface FinancialDataField {
-  key: keyof StockData['analysis']['financialData'];
+  key: string;
   label: string;
   description: string;
   category: 'assets' | 'liabilities' | 'equity' | 'performance';
@@ -94,7 +94,32 @@ interface StockAnalysisProps {
 const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
   const { analysis, price } = stockData;
   
-  // Finansal veri alanları tanımı
+  // Debug: Gelen veriyi logla - Veri akışını kontrol et
+  console.debug('StockAnalysis - Gelen stockData:', stockData);
+  console.debug('StockAnalysis - Analysis verisi:', analysis);
+  if (analysis?.financialData) {
+    console.debug('StockAnalysis - Finansal veriler:', analysis.financialData);
+    console.debug('StockAnalysis - Finansal veri key\'leri:', Object.keys(analysis.financialData));
+    console.debug('StockAnalysis - Finansal veri değerleri:', Object.entries(analysis.financialData).map(([key, value]) => `${key}: ${value}`));
+    console.debug('StockAnalysis - Sıfır olmayan değerler:', Object.entries(analysis.financialData).filter(([, value]) => value !== 0 && value !== null && value !== undefined));
+  } else {
+    console.warn('StockAnalysis - Finansal veri bulunamadı!');
+  }
+  
+  // Güvenlik kontrolü: analysis verisi yoksa hata mesajı göster
+  if (!analysis) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px] bg-white rounded-xl shadow-lg">
+        <div className="text-center">
+          <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Analiz Verisi Bulunamadı</h2>
+          <p className="text-gray-600">Bu hisse için analiz verisi henüz hazır değil.</p>
+        </div>
+      </div>
+    );
+  }
+  
+  // Finansal veri alanları tanımı (Backend'den gelen İngilizce key'lerle uyumlu)
   const financialDataFields: FinancialDataField[] = [
     { key: 'currentAssets', label: 'Dönen Varlıklar', description: 'Bir yıl içinde nakde çevrilebilir varlıklar', category: 'assets' },
     { key: 'shortTermLiabilities', label: 'Kısa Vadeli Yükümlülükler', description: 'Bir yıl içinde ödenecek borçlar', category: 'liabilities' },
@@ -140,7 +165,8 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
       
       return () => clearTimeout(timer);
     }
-  }, [selectedFields, calculationType, analysis.financialData]);
+    return undefined;
+  }, [selectedFields, calculationType, analysis?.financialData]);
   
   // Otomatik hesaplama fonksiyonları
   const calculateFinancialRatios = useMemo((): CalculationResult[] => {
@@ -149,7 +175,7 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
     const { financialData } = analysis;
     const results: CalculationResult[] = [];
     
-    // Likidite Oranları
+    // Likidite Oranları - Backend'den gelen İngilizce key'lerle uyumlu
     if (financialData.currentAssets && financialData.shortTermLiabilities) {
       const currentRatio = financialData.currentAssets / financialData.shortTermLiabilities;
       results.push({
@@ -162,7 +188,7 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
     }
     
     if (financialData.cashAndEquivalents && financialData.shortTermLiabilities) {
-      const acidTestRatio = (financialData.cashAndEquivalents + financialData.financialInvestments) / financialData.shortTermLiabilities;
+      const acidTestRatio = (financialData.cashAndEquivalents + (financialData.financialInvestments || 0)) / financialData.shortTermLiabilities;
       results.push({
         name: 'Asit Test Oranı',
         value: acidTestRatio,
@@ -269,21 +295,49 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
   }, [analysis]);
   
   // Yardımcı fonksiyonlar
-  const formatNumber = (num: number, decimals: number = 0): string => {
+  const formatNumber = (num: number | undefined | null, decimals: number = 0): string => {
+    // Güvenli kontroller ve fallback değerler
+    if (num === null || num === undefined) {
+      console.debug('formatNumber: Değer null veya undefined, fallback kullanılıyor');
+      return 'N/A';
+    }
+    
+    if (isNaN(num) || !isFinite(num)) {
+      console.debug('formatNumber: Geçersiz sayı değeri, fallback kullanılıyor:', num);
+      return 'Geçersiz';
+    }
+    
     if (num === 0) return '0';
-    if (Math.abs(num) >= 1e9) {
+    
+    const absNum = Math.abs(num);
+    if (absNum >= 1e9) {
       return (num / 1e9).toFixed(decimals) + 'B';
     }
-    if (Math.abs(num) >= 1e6) {
+    if (absNum >= 1e6) {
       return (num / 1e6).toFixed(decimals) + 'M';
     }
-    if (Math.abs(num) >= 1e3) {
+    if (absNum >= 1e3) {
       return (num / 1e3).toFixed(decimals) + 'K';
     }
-    return num.toFixed(decimals);
+    return (num || 0).toFixed(decimals);
   };
 
-  const formatCurrency = (num: number): string => {
+  const formatCurrency = (num: number | undefined | null): string => {
+    // Güvenli kontroller ve fallback değerler
+    if (num === null || num === undefined) {
+      console.debug('formatCurrency: Değer null veya undefined, fallback kullanılıyor');
+      return 'Veri yok';
+    }
+    
+    if (isNaN(num) || !isFinite(num)) {
+      console.debug('formatCurrency: Geçersiz sayı değeri, fallback kullanılıyor:', num);
+      return 'Geçersiz veri';
+    }
+    
+    if (num === 0) {
+      return '0 TL';
+    }
+    
     return formatNumber(num, 1) + ' TL';
   };
 
@@ -438,8 +492,8 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
             value: ratio,
             formula: `${formatCurrency(value1)} ÷ ${formatCurrency(value2)}`,
             interpretation: ratio > 1 
-              ? `${field1Label} ${field2Label}'den ${ratio.toFixed(2)} kat büyük`
-              : `${field1Label} ${field2Label}'nin ${(ratio * 100).toFixed(1)}%'si kadar`,
+              ? `${field1Label} ${field2Label}'den ${(ratio || 0).toFixed(2)} kat büyük`
+              : `${field1Label} ${field2Label}'nin ${((ratio || 0) * 100).toFixed(1)}%'si kadar`,
             category: 'Oran Analizi'
           });
         }
@@ -562,7 +616,7 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
                 }`}>
                   {getChangeIcon(price.changePercent)}
                   <span className="font-medium">
-                    {price.changePercent >= 0 ? '+' : ''}{price.changePercent.toFixed(2)}%
+                    {price.changePercent >= 0 ? '+' : ''}{(price.changePercent || 0).toFixed(2)}%
                   </span>
                 </div>
               </div>
@@ -595,7 +649,7 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
               <span className="font-medium">Bedelsiz Potansiyel</span>
             </div>
             <div className="text-lg font-bold mt-1 text-purple-600">
-              {analysis.ratios.bonusPotential.bonusScore}/100
+              {analysis.ratios?.bonusPotential?.bonusScore ?? 0}/100
             </div>
           </div>
         </div>
@@ -613,7 +667,7 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
           <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
             <div className="text-sm text-blue-600 font-medium">Dönen Varlıklar</div>
             <div className="text-lg font-bold text-blue-700">
-              {formatCurrency(analysis.financialData.currentAssets)}
+              {formatCurrency(analysis.financialData?.currentAssets)}
             </div>
           </div>
           
@@ -621,7 +675,7 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
           <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
             <div className="text-sm text-orange-600 font-medium">Kısa Vadeli Yükümlülükler</div>
             <div className="text-lg font-bold text-orange-700">
-              {formatCurrency(analysis.financialData.shortTermLiabilities)}
+              {formatCurrency(analysis.financialData?.shortTermLiabilities)}
             </div>
           </div>
           
@@ -629,7 +683,7 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
           <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
             <div className="text-sm text-amber-600 font-medium">Uzun Vadeli Yükümlülükler</div>
             <div className="text-lg font-bold text-amber-700">
-              {formatCurrency(analysis.financialData.longTermLiabilities)}
+              {formatCurrency(analysis.financialData?.longTermLiabilities)}
             </div>
           </div>
           
@@ -637,7 +691,7 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
           <div className="p-4 bg-green-50 rounded-lg border border-green-200">
             <div className="text-sm text-green-600 font-medium">Nakit ve Nakit Benzerleri</div>
             <div className="text-lg font-bold text-green-700">
-              {formatCurrency(analysis.financialData.cashAndEquivalents)}
+              {formatCurrency(analysis.financialData?.cashAndEquivalents)}
             </div>
           </div>
           
@@ -645,7 +699,7 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
           <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
             <div className="text-sm text-purple-600 font-medium">Finansal Yatırımlar</div>
             <div className="text-lg font-bold text-purple-700">
-              {formatCurrency(analysis.financialData.financialInvestments)}
+              {formatCurrency(analysis.financialData?.financialInvestments)}
             </div>
           </div>
           
@@ -653,7 +707,7 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
           <div className="p-4 bg-red-50 rounded-lg border border-red-200">
             <div className="text-sm text-red-600 font-medium">Finansal Borçlar</div>
             <div className="text-lg font-bold text-red-700">
-              {formatCurrency(analysis.financialData.financialDebts)}
+              {formatCurrency(analysis.financialData?.financialDebts)}
             </div>
           </div>
           
@@ -661,7 +715,7 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
           <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
             <div className="text-sm text-indigo-600 font-medium">Toplam Varlıklar</div>
             <div className="text-lg font-bold text-indigo-700">
-              {formatCurrency(analysis.financialData.totalAssets)}
+              {formatCurrency(analysis.financialData?.totalAssets)}
             </div>
           </div>
           
@@ -669,7 +723,7 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
           <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
             <div className="text-sm text-yellow-600 font-medium">Toplam Yükümlülükler</div>
             <div className="text-lg font-bold text-yellow-700">
-              {formatCurrency(analysis.financialData.totalLiabilities)}
+              {formatCurrency(analysis.financialData?.totalLiabilities)}
             </div>
           </div>
           
@@ -677,9 +731,9 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
           <div className="p-4 bg-teal-50 rounded-lg border border-teal-200">
             <div className="text-sm text-teal-600 font-medium">FAVÖK</div>
             <div className={`text-lg font-bold ${
-              analysis.financialData.ebitda >= 0 ? 'text-teal-700' : 'text-red-600'
+              (analysis.financialData?.ebitda ?? 0) >= 0 ? 'text-teal-700' : 'text-red-600'
             }`}>
-              {formatCurrency(analysis.financialData.ebitda)}
+              {formatCurrency(analysis.financialData?.ebitda)}
             </div>
           </div>
           
@@ -687,9 +741,9 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
           <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
             <div className="text-sm text-emerald-600 font-medium">Net Dönem Karı/Zararı</div>
             <div className={`text-lg font-bold ${
-              analysis.financialData.netProfit >= 0 ? 'text-emerald-700' : 'text-red-600'
+              (analysis.financialData?.netProfit ?? 0) >= 0 ? 'text-emerald-700' : 'text-red-600'
             }`}>
-              {formatCurrency(analysis.financialData.netProfit)}
+              {formatCurrency(analysis.financialData?.netProfit)}
             </div>
           </div>
           
@@ -697,7 +751,7 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
           <div className="p-4 bg-cyan-50 rounded-lg border border-cyan-200">
             <div className="text-sm text-cyan-600 font-medium">Özkaynaklar</div>
             <div className="text-lg font-bold text-cyan-700">
-              {formatCurrency(analysis.financialData.equity)}
+              {formatCurrency(analysis.financialData?.equity)}
             </div>
           </div>
           
@@ -705,7 +759,7 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
           <div className="p-4 bg-rose-50 rounded-lg border border-rose-200">
             <div className="text-sm text-rose-600 font-medium">Ödenmiş Sermaye</div>
             <div className="text-lg font-bold text-rose-700">
-              {formatCurrency(analysis.financialData.paidCapital)}
+              {formatCurrency(analysis.financialData?.paidCapital)}
             </div>
           </div>
         </div>
@@ -769,7 +823,7 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
                     
                     return (
                       <div
-                        key={field.key}
+                        key={String(field.key)}
                         onClick={() => {
                           if (isSelected) {
                             setSelectedFields(prev => prev.filter(f => f !== field.key));
@@ -794,7 +848,7 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
                             <div className="font-medium text-xs sm:text-sm break-words">{field.label}</div>
                             <div className="text-xs text-gray-500 mt-1 break-words">{field.description}</div>
                             <div className="text-xs font-medium mt-1">
-                              {formatCurrency(analysis.financialData[field.key] as number)}
+                              {formatCurrency(Number(analysis.financialData[field.key as keyof typeof analysis.financialData]) || 0)}
                             </div>
                           </div>
                         </div>
@@ -832,7 +886,7 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
                   ) : (
                     <>
                       <div className="h-2 w-2 bg-green-500 rounded-full"></div>
-                      <span>Son güncelleme: {lastCalculationTime.toLocaleTimeString('tr-TR')}</span>
+                      <span>Son güncelleme: {lastCalculationTime?.toLocaleTimeString('tr-TR') || 'Bilinmiyor'}</span>
                     </>
                   )}
                 </div>
@@ -891,8 +945,8 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
                              </div>
                              <div className={`text-xl sm:text-2xl font-bold mb-2 ${getValueColor(result.value, result.category)}`}>
                                {typeof result.value === 'number' && result.name.includes('%') 
-                                 ? `${result.value.toFixed(2)}%`
-                                 : result.value.toFixed(3)
+                                 ? `${(result.value || 0).toFixed(2)}%`
+                                 : (result.value || 0).toFixed(3)
                                }
                              </div>
                              <div className="text-xs text-gray-600 mb-2">
@@ -927,11 +981,16 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
                         <div className="flex flex-wrap gap-2 mb-3">
                           {selectedFields.map((fieldKey) => {
                             const field = financialDataFields.find(f => f.key === fieldKey);
-                            const value = stockData ? stockData[fieldKey as keyof typeof stockData] : 0;
+                            const rawValue = analysis?.financialData?.[fieldKey as keyof typeof analysis.financialData];
+                            const value = typeof rawValue === 'number' ? rawValue : null;
+                            
+                            // Debug: Seçilen veri değerlerini logla
+                            console.debug(`Seçilen alan: ${field?.label}, Key: ${fieldKey}, Ham değer: ${rawValue}, İşlenmiş değer: ${value}, Tip: ${typeof rawValue}`);
+                            
                             return (
-                              <div key={fieldKey} className="px-3 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm">
-                                <div className="font-medium">{field?.label}</div>
-                                <div className="text-xs">{typeof value === 'number' ? value.toLocaleString('tr-TR') : value} TL</div>
+                              <div key={String(fieldKey)} className="px-3 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm">
+                                <div className="font-medium">{field?.label || 'Bilinmeyen Alan'}</div>
+                                <div className="text-xs">{formatCurrency(value)}</div>
                               </div>
                             );
                           })}
@@ -952,14 +1011,19 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
                           {selectedFields.map((fieldKey) => {
                             const field = financialDataFields.find(f => f.key === fieldKey);
-                            const value = stockData ? stockData[fieldKey as keyof typeof stockData] : 0;
+                            const rawValue = analysis?.financialData?.[fieldKey as keyof typeof analysis.financialData];
+                            const value = typeof rawValue === 'number' ? rawValue : null;
+                            
+                            // Debug: Hesaplama alanındaki veri değerlerini logla
+                            console.debug(`Hesaplama alanı - Alan: ${field?.label}, Key: ${fieldKey}, Ham değer: ${rawValue}, İşlenmiş değer: ${value}, Formatlanmış: ${formatCurrency(value)}`);
+                            
                             return (
-                              <div key={fieldKey} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
-                                <div className="text-sm font-medium text-gray-900">{field?.label}</div>
+                              <div key={String(fieldKey)} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
+                                <div className="text-sm font-medium text-gray-900">{field?.label || 'Bilinmeyen Alan'}</div>
                                 <div className="text-lg font-bold text-blue-600">
-                                  {typeof value === 'number' ? value.toLocaleString('tr-TR') : value} TL
+                                  {formatCurrency(value)}
                                 </div>
-                                <div className="text-xs text-gray-500">{field?.description}</div>
+                                <div className="text-xs text-gray-500">{field?.description || 'Açıklama yok'}</div>
                               </div>
                             );
                           })}
@@ -975,8 +1039,8 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
                                 for (let j = i + 1; j < selectedFields.length; j++) {
                                   const field1 = financialDataFields.find(f => f.key === selectedFields[i]);
                                   const field2 = financialDataFields.find(f => f.key === selectedFields[j]);
-                                  const value1 = stockData ? stockData[selectedFields[i] as keyof typeof stockData] : 0;
-                                  const value2 = stockData ? stockData[selectedFields[j] as keyof typeof stockData] : 0;
+                                  const value1 = stockData ? Number(stockData[selectedFields[i] as keyof typeof stockData]) || 0 : 0;
+                                  const value2 = stockData ? Number(stockData[selectedFields[j] as keyof typeof stockData]) || 0 : 0;
                                   
                                   if (typeof value1 === 'number' && typeof value2 === 'number' && value2 !== 0) {
                                     const ratio = value1 / value2;
@@ -988,13 +1052,13 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
                                           {field1?.label} / {field2?.label}
                                         </div>
                                         <div className="text-lg font-bold text-purple-600 mb-1">
-                                          {ratio.toFixed(3)}
-                                        </div>
-                                        <div className="text-sm text-green-600 mb-2">
-                                          %{percentage.toFixed(2)}
-                                        </div>
+                          {(ratio || 0).toFixed(3)}
+                        </div>
+                        <div className="text-sm text-green-600 mb-2">
+                          %{(percentage || 0).toFixed(2)}
+                        </div>
                                         <div className="text-xs text-gray-500">
-                                          {value1.toLocaleString('tr-TR')} ÷ {value2.toLocaleString('tr-TR')}
+                                          {value1.toLocaleString('tr-TR', {minimumFractionDigits: 0, maximumFractionDigits: 2})} ÷ {value2.toLocaleString('tr-TR', {minimumFractionDigits: 0, maximumFractionDigits: 2})}
                                         </div>
                                       </div>
                                     );
@@ -1014,7 +1078,7 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
                           {selectedFields.map((fieldKey) => {
                             const field = financialDataFields.find(f => f.key === fieldKey);
                             return (
-                              <span key={fieldKey} className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">
+                              <span key={String(fieldKey)} className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">
                                 {field?.label}
                               </span>
                             );
@@ -1053,8 +1117,8 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
                               
                               <div className={`text-xl font-bold mb-2 ${indicator.color}`}>
                                 {result.name.includes('%') 
-                                  ? `${(result.value * 100).toFixed(2)}%`
-                                  : result.value.toFixed(3)
+                                  ? `${((result.value || 0) * 100).toFixed(2)}%`
+                                  : (result.value || 0).toFixed(3)
                                 }
                               </div>
                               
@@ -1124,21 +1188,21 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Borç/Varlık Oranı</span>
               <span className="font-bold text-gray-900">
-                %{analysis.ratios.financialStructure.debtToAssetRatio}
+                %{analysis.ratios?.financialStructure?.debtToAssetRatio ?? 0}
               </span>
             </div>
             
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Cari Oran</span>
               <span className="font-bold text-gray-900">
-                {analysis.ratios.financialStructure.currentRatio.toFixed(2)}
+                {(analysis.ratios?.financialStructure?.currentRatio || 0).toFixed(2)}
               </span>
             </div>
             
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Özkaynak Oranı</span>
               <span className="font-bold text-gray-900">
-                %{analysis.ratios.financialStructure.equityRatio}
+                %{analysis.ratios?.financialStructure?.equityRatio ?? 0}
               </span>
             </div>
           </div>
@@ -1152,27 +1216,27 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Özkaynak Karlılığı</span>
               <span className={`font-bold ${
-                analysis.ratios.ebitdaProfitability.returnOnEquity >= 0 ? 'text-green-600' : 'text-red-600'
+                (analysis.ratios?.ebitdaProfitability?.returnOnEquity ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'
               }`}>
-                %{analysis.ratios.ebitdaProfitability.returnOnEquity}
+                %{analysis.ratios?.ebitdaProfitability?.returnOnEquity ?? 0}
               </span>
             </div>
             
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Aktif Karlılığı</span>
               <span className={`font-bold ${
-                analysis.ratios.ebitdaProfitability.returnOnAssets >= 0 ? 'text-green-600' : 'text-red-600'
+                (analysis.ratios?.ebitdaProfitability?.returnOnAssets ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'
               }`}>
-                %{analysis.ratios.ebitdaProfitability.returnOnAssets}
+                %{analysis.ratios?.ebitdaProfitability?.returnOnAssets ?? 0}
               </span>
             </div>
             
             <div className="flex justify-between items-center">
               <span className="text-gray-600">FAVÖK Marjı</span>
               <span className={`font-bold ${
-                analysis.ratios.ebitdaProfitability.ebitdaMargin >= 0 ? 'text-green-600' : 'text-red-600'
+                (analysis.ratios?.ebitdaProfitability?.ebitdaMargin ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'
               }`}>
-                %{analysis.ratios.ebitdaProfitability.ebitdaMargin}
+                %{analysis.ratios?.ebitdaProfitability?.ebitdaMargin ?? 0}
               </span>
             </div>
           </div>
@@ -1190,18 +1254,18 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
           <div>
             <div className="text-sm text-gray-600 mb-2">Net İşletme Sermayesi</div>
             <div className={`text-2xl font-bold ${
-              analysis.ratios.netWorkingCapital >= 0 ? 'text-green-600' : 'text-red-600'
+              (analysis.ratios?.netWorkingCapital ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'
             }`}>
-              {formatCurrency(analysis.ratios.netWorkingCapital)}
+              {formatCurrency(analysis.ratios?.netWorkingCapital)}
             </div>
           </div>
           
           <div>
             <div className="text-sm text-gray-600 mb-2">Nakit Pozisyonu</div>
             <div className={`text-2xl font-bold ${
-              analysis.ratios.cashPosition >= 0 ? 'text-green-600' : 'text-red-600'
+              (analysis.ratios?.cashPosition ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'
             }`}>
-              {formatCurrency(analysis.ratios.cashPosition)}
+              {formatCurrency(analysis.ratios?.cashPosition)}
             </div>
           </div>
         </div>
@@ -1215,21 +1279,21 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
           <div className="text-center p-4 bg-purple-50 rounded-lg">
             <div className="text-sm text-purple-600 mb-1">Dağıtılmamış Karlar</div>
             <div className="text-xl font-bold text-purple-700">
-              %{analysis.ratios.bonusPotential.retainedEarningsRatio}
+              %{analysis.ratios?.bonusPotential?.retainedEarningsRatio ?? 0}
             </div>
           </div>
           
           <div className="text-center p-4 bg-purple-50 rounded-lg">
             <div className="text-sm text-purple-600 mb-1">Kar Dağıtım Oranı</div>
             <div className="text-xl font-bold text-purple-700">
-              %{analysis.ratios.bonusPotential.payoutRatio}
+              %{analysis.ratios?.bonusPotential?.payoutRatio ?? 0}
             </div>
           </div>
           
           <div className="text-center p-4 bg-purple-100 rounded-lg">
             <div className="text-sm text-purple-600 mb-1">Bedelsiz Skoru</div>
             <div className="text-xl font-bold text-purple-800">
-              {analysis.ratios.bonusPotential.bonusScore}/100
+              {analysis.ratios?.bonusPotential?.bonusScore ?? 0}/100
             </div>
           </div>
         </div>
@@ -1389,6 +1453,10 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
           </div>
         )}
       </div>
+
+
+
+
 
       {/* Öneriler */}
       <div className="bg-white rounded-xl shadow-lg p-6">

@@ -24,14 +24,63 @@ export default defineConfig({
     }), 
     tsconfigPaths(),
   ],
+  build: {
+    target: 'es2020',
+    minify: 'terser',
+    sourcemap: process.env.NODE_ENV === 'development',
+    cssCodeSplit: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          charts: ['chart.js', 'react-chartjs-2', 'recharts'],
+          utils: ['axios', 'date-fns', 'clsx', 'tailwind-merge'],
+          router: ['react-router-dom'],
+          state: ['zustand', 'react-query'],
+          ui: ['lucide-react']
+        },
+        chunkFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]'
+      }
+    },
+    chunkSizeWarningLimit: 500,
+    assetsInlineLimit: 4096
+  },
+  optimizeDeps: {
+    include: [
+      'react', 
+      'react-dom', 
+      'axios', 
+      'chart.js', 
+      'react-chartjs-2',
+      'recharts',
+      'date-fns',
+      'zustand',
+      'react-query',
+      'react-router-dom'
+    ],
+    exclude: ['@vite/client', '@vite/env']
+  },
   server: {
-    port: 8765,
+    port: 5173,
+    host: true,
+    strictPort: true,
     proxy: {
       '/api': {
         target: 'http://localhost:9876',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '')
+        secure: false,
+        ws: true
       }
+    },
+    hmr: {
+      overlay: true
     }
+  },
+  preview: {
+    port: 3000,
+    host: true,
+    strictPort: true
   }
 })
