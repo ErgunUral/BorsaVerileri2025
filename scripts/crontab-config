@@ -1,0 +1,11 @@
+# Otomatik GitHub Deploy Cron Job
+# Her saat başı (dakika 0'da) çalışır
+0 * * * * /Users/ergunural/Downloads/BorsaVerileri2025/scripts/auto-deploy.sh >> /Users/ergunural/Downloads/BorsaVerileri2025/logs/cron.log 2>&1
+
+# Cron job açıklaması:
+# 0 * * * * = Her saat başı (dakika 0'da)
+# Örnek çalışma zamanları:
+# - 09:00, 10:00, 11:00, 12:00, vb.
+# 
+# Log dosyası: /Users/ergunural/Downloads/BorsaVerileri2025/logs/cron.log
+# Script dosyası: /Users/ergunural/Downloads/BorsaVerileri2025/scripts/auto-deploy.sh
