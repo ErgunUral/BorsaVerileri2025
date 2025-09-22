@@ -1,5 +1,20 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, DollarSign, BarChart3, PieChart, Target, Calculator, Settings, RefreshCw } from 'lucide-react';
+import TradingSignals from './TradingSignals';
+import FinancialRatiosCard from './FinancialRatiosCard';
+import TechnicalIndicatorsCard from './TechnicalIndicatorsCard';
+import StockDataCard from './StockDataCard';
+import PatternRecognitionCard from './PatternRecognitionCard';
+import { AIPatternAnalysis } from './AIPatternAnalysis';
+import { MarketSentimentCard } from './MarketSentimentCard';
+import { RiskAnalysisCard } from './RiskAnalysisCard';
+import FinancialCalculator from './FinancialCalculator';
+import AnalysisRecommendations from './AnalysisRecommendations';
+import { useTechnicalIndicators } from '../hooks/useTechnicalIndicators';
+import { usePatternRecognition } from '../hooks/usePatternRecognition';
+import { useAdvancedPatterns } from '../hooks/useAdvancedPatterns';
+import { useMarketSentiment } from '../hooks/useMarketSentiment';
+import { useRiskAnalysis } from '../hooks/useRiskAnalysis';
 
 interface StockData {
   stockCode: string;
@@ -71,40 +86,54 @@ interface CalculationResult {
   category: string;
 }
 
-interface CalculatorState {
-  firstNumber: string;
-  secondNumber: string;
-  operation: '+' | '-' | '×' | '/' | null;
-  result: number | null;
-  error: string | null;
-  history: CalculatorHistoryItem[];
-}
-
-interface CalculatorHistoryItem {
-  id: string;
-  expression: string;
-  result: number;
-  timestamp: Date;
-}
+// Calculator interfaces removed - now handled by FinancialCalculator component
 
 interface StockAnalysisProps {
   stockData: StockData;
 }
 
-const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
+const StockAnalysis: React.FC<StockAnalysisProps> = React.memo(({ stockData }) => {
   const { analysis, price } = stockData;
   
-  // Debug: Gelen veriyi logla - Veri akışını kontrol et
-  console.debug('StockAnalysis - Gelen stockData:', stockData);
-  console.debug('StockAnalysis - Analysis verisi:', analysis);
-  if (analysis?.financialData) {
-    console.debug('StockAnalysis - Finansal veriler:', analysis.financialData);
-    console.debug('StockAnalysis - Finansal veri key\'leri:', Object.keys(analysis.financialData));
-    console.debug('StockAnalysis - Finansal veri değerleri:', Object.entries(analysis.financialData).map(([key, value]) => `${key}: ${value}`));
-    console.debug('StockAnalysis - Sıfır olmayan değerler:', Object.entries(analysis.financialData).filter(([, value]) => value !== 0 && value !== null && value !== undefined));
-  } else {
-    console.warn('StockAnalysis - Finansal veri bulunamadı!');
-  }
+  // Hook'lar
+  const {
+    indicators,
+    loading: indicatorsLoading,
+    error: indicatorsError,
+    fetchIndicators
+  } = useTechnicalIndicators();
+  
+  const {
+    patterns,
+    loading: patternsLoading,
+    error: patternsError,
+    analyzePatterns
+  } = usePatternRecognition();
+  
+  const {
+    advancedPatterns,
+    loading: advancedPatternsLoading,
+    error: advancedPatternsError,
+    analyzeAdvancedPatterns
+  } = useAdvancedPatterns();
+  
+  const {
+    sentimentData,
+    analysis: sentimentAnalysis,
+    isLoading: sentimentLoading,
+    error: sentimentError,
+    fetchSentiment
+  } = useMarketSentiment();
+  
+  const {
+    riskData,
+    assessment: riskAssessment,
+    isLoading: riskLoading,
+    error: riskError,
+    fetchRiskAnalysis
+  } = useRiskAnalysis();
+  
+  // Production'da debug logları kaldırıldı
   
   // Güvenlik kontrolü: analysis verisi yoksa hata mesajı göster
   if (!analysis) {
@@ -144,15 +173,7 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Tümü');
   
   // Hesap makinesi state'leri
-  const [calculatorState, setCalculatorState] = useState<CalculatorState>({
-    firstNumber: '',
-    secondNumber: '',
-    operation: null,
-    result: null,
-    error: null,
-    history: []
-  });
-  const [showCustomCalculator, setShowCustomCalculator] = useState(false);
+  // Calculator state removed - now handled by FinancialCalculator component
   
   // Gerçek zamanlı hesaplama güncellemesi
   useEffect(() => {
@@ -341,128 +362,98 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
     return formatNumber(num, 1) + ' TL';
   };
 
-  // Hesap makinesi fonksiyonları
-  const validateNumber = (value: string): boolean => {
-    if (value === '' || value === '-') return true;
-    const num = parseFloat(value);
-    return !isNaN(num) && isFinite(num);
+  // Calculator functions removed - now handled by FinancialCalculator component
+
+  // Veri seçimi için yardımcı fonksiyonlar
+  const getFieldValue = (fieldKey: string): number | null => {
+    if (!analysis?.financialData) return null;
+    const value = analysis.financialData[fieldKey as keyof typeof analysis.financialData] as number;
+    return value || null;
   };
 
-  const performCalculation = (num1: number, num2: number, operation: '+' | '-' | '×' | '/'): { result: number; error: string | null } => {
-    try {
-      let result: number;
+  const toggleFieldSelection = (fieldKey: string) => {
+    setCalculatorState(prev => {
+      const isSelected = prev.selectedFields.includes(fieldKey);
+      const newSelectedFields = isSelected
+        ? prev.selectedFields.filter(f => f !== fieldKey)
+        : [...prev.selectedFields, fieldKey];
       
-      switch (operation) {
-        case '+':
-          result = num1 + num2;
-          break;
-        case '-':
-          result = num1 - num2;
-          break;
-        case '×':
-          result = num1 * num2;
-          break;
-        case '/':
-          if (num2 === 0) {
-            return { result: 0, error: 'Sıfıra bölme hatası!' };
-          }
-          result = num1 / num2;
-          break;
-        default:
-          return { result: 0, error: 'Geçersiz işlem!' };
-      }
-      
-      if (!isFinite(result)) {
-        return { result: 0, error: 'Sonuç çok büyük!' };
-      }
-      
-      return { result, error: null };
-    } catch (error) {
-      return { result: 0, error: 'Hesaplama hatası!' };
-    }
-  };
-
-  const handleCalculatorInput = (field: 'firstNumber' | 'secondNumber', value: string) => {
-    if (!validateNumber(value)) return;
-    
-    setCalculatorState(prev => ({
-      ...prev,
-      [field]: value,
-      error: null
-    }));
-  };
-
-  const handleOperationSelect = (operation: '+' | '-' | '×' | '/') => {
-    setCalculatorState(prev => ({
-      ...prev,
-      operation,
-      error: null
-    }));
-  };
-
-  const calculateResult = () => {
-    const { firstNumber, secondNumber, operation } = calculatorState;
-    
-    if (!firstNumber || !secondNumber || !operation) {
-      setCalculatorState(prev => ({
+      return {
         ...prev,
-        error: 'Lütfen tüm alanları doldurun!'
-      }));
-      return;
-    }
-    
-    const num1 = parseFloat(firstNumber);
-    const num2 = parseFloat(secondNumber);
-    
-    if (isNaN(num1) || isNaN(num2)) {
-      setCalculatorState(prev => ({
-        ...prev,
-        error: 'Geçersiz sayı formatı!'
-      }));
-      return;
-    }
-    
-    const { result, error } = performCalculation(num1, num2, operation);
-    
-    if (error) {
-      setCalculatorState(prev => ({
-        ...prev,
-        error,
-        result: null
-      }));
-      return;
-    }
-    
-    const historyItem: CalculatorHistoryItem = {
-      id: Date.now().toString(),
-      expression: `${firstNumber} ${operation} ${secondNumber}`,
-      result,
-      timestamp: new Date()
-    };
-    
-    setCalculatorState(prev => ({
-      ...prev,
-      result,
-      error: null,
-      history: [historyItem, ...prev.history.slice(0, 9)] // Son 10 işlemi sakla
-    }));
-  };
-
-  const clearCalculator = () => {
-    setCalculatorState({
-      firstNumber: '',
-      secondNumber: '',
-      operation: null,
-      result: null,
-      error: null,
-      history: calculatorState.history
+        selectedFields: newSelectedFields,
+        error: null
+      };
     });
   };
 
-  const clearCalculatorHistory = () => {
+  // Özel hesaplama fonksiyonu
+  const performCustomCalculation = () => {
+    if (calculatorState.selectedFields.length < 2) {
+      setCalculatorState(prev => ({ ...prev, error: 'En az 2 alan seçilmeli' }));
+      return;
+    }
+
+    if (!calculatorState.operation) {
+      setCalculatorState(prev => ({ ...prev, error: 'Hesaplama türü seçilmeli' }));
+      return;
+    }
+
+    const values = calculatorState.selectedFields.map(field => {
+      const value = getFieldValue(field);
+      console.log(`${field} değeri:`, value);
+      return value;
+    }).filter(val => val !== null && val !== undefined && !isNaN(val as number));
+
+    if (values.length < 2) {
+      setCalculatorState(prev => ({ ...prev, error: 'Geçerli değer bulunamadı' }));
+      return;
+    }
+
+    let result: number;
+    const operation = calculatorState.operation;
+    
+    // İlk değeri başlangıç olarak al
+    result = values[0] as number;
+    
+    // Kalan değerler üzerinde seçilen işlemi uygula
+    for (let i = 1; i < values.length; i++) {
+      const currentValue = values[i] as number;
+      
+      switch (operation) {
+        case '+':
+          result += currentValue;
+          break;
+        case '-':
+          result -= currentValue;
+          break;
+        case '×':
+          result *= currentValue;
+          break;
+        case '/':
+          if (currentValue === 0) {
+            setCalculatorState(prev => ({ ...prev, error: 'Sıfıra bölme hatası' }));
+            return;
+          }
+          result /= currentValue;
+          break;
+        default:
+          setCalculatorState(prev => ({ ...prev, error: 'Geçersiz işlem türü' }));
+          return;
+      }
+    }
+    
+    console.log('Hesaplama sonucu:', result);
+    
     setCalculatorState(prev => ({
       ...prev,
-      history: []
+      result: result,
+      error: null,
+      lastCalculation: {
+        fields: [...calculatorState.selectedFields],
+        operation: operation,
+        result: result,
+        timestamp: new Date().toLocaleString('tr-TR')
+      }
     }));
   };
 
@@ -596,8 +587,70 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
     return <div className="h-4 w-4" />;
   };
 
+  // Calculator functions removed - now handled by FinancialCalculator component
+
+  // Format fonksiyonları
+  const formatCurrency = (value: number | null | undefined): string => {
+    if (value === null || value === undefined || isNaN(value)) return 'N/A';
+    return new Intl.NumberFormat('tr-TR', {
+      style: 'currency',
+      currency: 'TRY',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(value);
+  };
+
+  const formatNumber = (value: number | null | undefined): string => {
+    if (value === null || value === undefined || isNaN(value)) return 'N/A';
+    return new Intl.NumberFormat('tr-TR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(value);
+  };
+
+  const formatPercentage = (value: number | null | undefined): string => {
+    if (value === null || value === undefined || isNaN(value)) return 'N/A';
+    return `${value.toFixed(2)}%`;
+  };
+
   return (
     <div className="space-y-6">
+      {/* Hisse Senedi Veri Kartı */}
+      <StockDataCard 
+        stockData={stockData}
+        analysis={analysis}
+        price={price}
+      />
+      
+      {/* Teknik İndikatörler Kartı */}
+      <TechnicalIndicatorsCard 
+        indicators={indicators}
+        loading={indicatorsLoading}
+        error={indicatorsError}
+        onRefresh={() => fetchIndicators(stockData.symbol)}
+      />
+      
+      {/* Formasyon Tanıma Kartı */}
+      <PatternRecognitionCard 
+        patterns={patterns}
+        advancedPatterns={advancedPatterns}
+        loading={patternsLoading || advancedPatternsLoading}
+        error={patternsError || advancedPatternsError}
+        onRefresh={() => {
+          analyzePatterns(stockData.symbol);
+          analyzeAdvancedPatterns(stockData.symbol);
+        }}
+      />
+      
+      {/* Finansal Oranlar Kartı */}
+      <FinancialRatiosCard 
+        calculations={calculateFinancialRatios}
+        selectedCategory={selectedCategory}
+        onCategoryChange={setSelectedCategory}
+        isCalculating={isCalculating}
+        lastCalculationTime={lastCalculationTime}
+      />
+      
       {/* Başlık ve Genel Bilgiler */}
       <div className="bg-white rounded-xl shadow-lg p-6">
         <div className="flex items-center justify-between mb-4">
@@ -811,6 +864,40 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
             {calculationType === 'custom' && (
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-gray-900">Hesaplama için Veri Seçin</h3>
+                
+                {/* Hesaplama Türü Seçici */}
+                <div className="bg-gray-50 p-4 rounded-lg border">
+                  <h4 className="text-md font-semibold text-gray-800 mb-3">Hesaplama Türünü Seçin</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      { type: '+', label: 'Toplama', icon: '+', color: 'bg-green-100 text-green-700 border-green-300' },
+                      { type: '-', label: 'Çıkarma', icon: '−', color: 'bg-red-100 text-red-700 border-red-300' },
+                      { type: '×', label: 'Çarpma', icon: '×', color: 'bg-blue-100 text-blue-700 border-blue-300' },
+                      { type: '/', label: 'Bölme', icon: '÷', color: 'bg-purple-100 text-purple-700 border-purple-300' }
+                    ].map((op) => (
+                      <button
+                        key={op.type}
+                        onClick={() => setCalculatorState(prev => ({ ...prev, operation: op.type as '+' | '-' | '×' | '/' }))}
+                        className={`p-3 rounded-lg border-2 transition-all text-center ${
+                          calculatorState.operation === op.type
+                            ? `${op.color} border-opacity-100 shadow-md`
+                            : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="text-xl font-bold mb-1">{op.icon}</div>
+                        <div className="text-sm font-medium">{op.label}</div>
+                      </button>
+                    ))}
+                  </div>
+                  {calculatorState.operation && (
+                    <div className="mt-3 p-2 bg-blue-50 rounded text-sm text-blue-700">
+                      <strong>Seçilen İşlem:</strong> {calculatorState.operation === '+' ? 'Toplama' : 
+                                                        calculatorState.operation === '-' ? 'Çıkarma' :
+                                                        calculatorState.operation === '×' ? 'Çarpma' : 'Bölme'}
+                    </div>
+                  )}
+                </div>
+                
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
                   {financialDataFields.map((field) => {
                     const isSelected = selectedFields.includes(field.key);
@@ -824,13 +911,7 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
                     return (
                       <div
                         key={String(field.key)}
-                        onClick={() => {
-                          if (isSelected) {
-                            setSelectedFields(prev => prev.filter(f => f !== field.key));
-                          } else {
-                            setSelectedFields(prev => [...prev, field.key]);
-                          }
-                        }}
+                        onClick={() => toggleFieldSelection(field.key)}
                         className={`p-2 sm:p-3 rounded-lg border-2 cursor-pointer transition-all ${
                           isSelected
                             ? `${categoryColors[field.category]} border-opacity-100 shadow-md`
@@ -858,16 +939,58 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
                 </div>
                 
                 {selectedFields.length > 0 && (
-                  <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                    <div className="text-sm text-blue-700">
-                      <strong>Seçilen Veriler:</strong> {selectedFields.length} adet
+                  <div className="mt-4 space-y-3">
+                    <div className="p-4 bg-blue-50 rounded-lg">
+                      <div className="text-sm text-blue-700">
+                        <strong>Seçilen Veriler:</strong> {selectedFields.length} adet
+                      </div>
+                      <div className="text-xs text-blue-600 mt-1">
+                        {selectedFields.map(field => {
+                          const fieldData = financialDataFields.find(f => f.key === field);
+                          return fieldData?.label;
+                        }).join(', ')}
+                      </div>
                     </div>
-                    <div className="text-xs text-blue-600 mt-1">
-                      {selectedFields.map(field => {
-                        const fieldData = financialDataFields.find(f => f.key === field);
-                        return fieldData?.label;
-                      }).join(', ')}
-                    </div>
+                    
+                    {/* Hesaplama Butonu */}
+                    {selectedFields.length >= 2 && calculatorState.operation && (
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <button
+                          onClick={() => performCustomCalculation()}
+                          className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-blue-700 transition-all shadow-md flex items-center justify-center space-x-2"
+                        >
+                          <Calculator className="h-5 w-5" />
+                          <span>Hesapla ({calculatorState.operation === '+' ? 'Toplama' : calculatorState.operation === '-' ? 'Çıkarma' : calculatorState.operation === '×' ? 'Çarpma' : 'Bölme'})</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedFields([]);
+                            setCalculatorState(prev => ({ ...prev, operation: '+' }));
+                          }}
+                          className="px-4 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                        >
+                          Temizle
+                        </button>
+                      </div>
+                    )}
+                    
+                    {/* Son Hesaplama Sonucu */}
+                    {calculatorState.lastCalculation && (
+                      <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                        <h4 className="font-semibold text-green-900 mb-2">Son Hesaplama Sonucu</h4>
+                        <div className="text-2xl font-bold text-green-700 mb-2">
+                          {formatCurrency(calculatorState.lastCalculation.result)}
+                        </div>
+                        <div className="text-sm text-green-600">
+                          <strong>İşlem:</strong> {calculatorState.lastCalculation.operation === '+' ? 'Toplama' : 
+                                                    calculatorState.lastCalculation.operation === '-' ? 'Çıkarma' :
+                                                    calculatorState.lastCalculation.operation === '×' ? 'Çarpma' : 'Bölme'}
+                        </div>
+                        <div className="text-xs text-green-500 mt-1">
+                          {calculatorState.lastCalculation.timestamp}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1299,193 +1422,117 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
         </div>
       </div>
 
-      {/* Özel Hesaplar - Hesap Makinesi */}
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-900 flex items-center space-x-2">
-            <Calculator className="h-5 w-5 text-blue-600" />
-            <span>Özel Hesaplar</span>
-          </h3>
-          <button
-            onClick={() => setShowCustomCalculator(!showCustomCalculator)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
-          >
-            <Calculator className="h-4 w-4" />
-            <span>{showCustomCalculator ? 'Gizle' : 'Hesap Makinesi'}</span>
-          </button>
-        </div>
-        
-        {showCustomCalculator && (
-          <div className="space-y-6">
-            {/* Hesap Makinesi Arayüzü */}
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200">
-              <h4 className="font-semibold text-gray-900 mb-4 text-center">Temel Matematiksel İşlemler</h4>
-              
-              {/* Input Alanları */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Birinci Sayı</label>
-                  <input
-                    type="text"
-                    value={calculatorState.firstNumber}
-                    onChange={(e) => handleCalculatorInput('firstNumber', e.target.value)}
-                    placeholder="Sayı girin..."
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center text-lg font-mono"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">İşlem</label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {['+', '-', '×', '/'].map((op) => (
-                      <button
-                        key={op}
-                        onClick={() => handleOperationSelect(op as '+' | '-' | '×' | '/')}
-                        className={`py-3 px-2 rounded-lg font-bold text-lg transition-all ${
-                          calculatorState.operation === op
-                            ? 'bg-blue-600 text-white shadow-lg'
-                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-blue-50 hover:border-blue-300'
-                        }`}
-                      >
-                        {op}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1 text-center">
-                    {calculatorState.operation === '+' && 'Toplama'}
-                    {calculatorState.operation === '-' && 'Çıkarma'}
-                    {calculatorState.operation === '×' && 'Çarpma'}
-                    {calculatorState.operation === '/' && 'Bölme'}
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">İkinci Sayı</label>
-                  <input
-                    type="text"
-                    value={calculatorState.secondNumber}
-                    onChange={(e) => handleCalculatorInput('secondNumber', e.target.value)}
-                    placeholder="Sayı girin..."
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center text-lg font-mono"
-                  />
-                </div>
-              </div>
-              
-              {/* İşlem Butonları */}
-              <div className="flex flex-col sm:flex-row gap-3 mb-6">
-                <button
-                  onClick={calculateResult}
-                  disabled={!calculatorState.firstNumber || !calculatorState.secondNumber || !calculatorState.operation}
-                  className="flex-1 py-3 px-6 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-semibold flex items-center justify-center space-x-2"
-                >
-                  <Calculator className="h-4 w-4" />
-                  <span>Hesapla</span>
-                </button>
-                
-                <button
-                  onClick={clearCalculator}
-                  className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold flex items-center justify-center space-x-2"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  <span>Temizle</span>
-                </button>
-              </div>
-              
-              {/* Sonuç Gösterimi */}
-              <div className="bg-white p-4 rounded-lg border border-gray-200">
-                {calculatorState.error ? (
-                  <div className="text-center">
-                    <div className="text-red-600 font-semibold mb-2 flex items-center justify-center space-x-2">
-                      <AlertTriangle className="h-5 w-5" />
-                      <span>Hata</span>
-                    </div>
-                    <div className="text-red-500">{calculatorState.error}</div>
-                  </div>
-                ) : calculatorState.result !== null ? (
-                  <div className="text-center">
-                    <div className="text-gray-600 mb-2 font-medium">Sonuç</div>
-                    <div className="text-3xl font-bold text-green-600 font-mono">
-                      {calculatorState.result.toLocaleString('tr-TR', { maximumFractionDigits: 8 })}
-                    </div>
-                    <div className="text-sm text-gray-500 mt-2">
-                      {calculatorState.firstNumber} {calculatorState.operation} {calculatorState.secondNumber} = {calculatorState.result.toLocaleString('tr-TR', { maximumFractionDigits: 8 })}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center text-gray-500">
-                    <Calculator className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                    <div>Hesaplama yapmak için yukarıdaki alanları doldurun</div>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            {/* İşlem Geçmişi */}
-            {calculatorState.history.length > 0 && (
-              <div className="bg-gray-50 p-4 rounded-xl">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-semibold text-gray-900">İşlem Geçmişi</h4>
-                  <button
-                    onClick={clearCalculatorHistory}
-                    className="text-sm text-red-600 hover:text-red-700 font-medium"
-                  >
-                    Geçmişi Temizle
-                  </button>
-                </div>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {calculatorState.history.map((item) => (
-                    <div key={item.id} className="bg-white p-3 rounded-lg border border-gray-200 flex justify-between items-center">
-                      <div className="font-mono text-sm">
-                        <span className="text-gray-700">{item.expression}</span>
-                        <span className="text-gray-500 mx-2">=</span>
-                        <span className="text-green-600 font-semibold">
-                          {item.result.toLocaleString('tr-TR', { maximumFractionDigits: 8 })}
-                        </span>
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {item.timestamp.toLocaleTimeString('tr-TR')}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+      {/* Finansal Hesap Makinesi */}
+      <div className="mt-8">
+        <FinancialCalculator
+          financialData={analysis?.financialData}
+          onCalculationComplete={(results) => {
+            // Hesaplama sonuçlarını işle
+            console.log('Finansal hesaplama sonuçları:', results);
+          }}
+        />
       </div>
 
 
 
 
 
-      {/* Öneriler */}
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center space-x-2">
-          <CheckCircle className="h-5 w-5 text-blue-600" />
-          <span>Analiz Önerileri</span>
-        </h3>
-        
-        <div className="space-y-3">
-          {analysis.recommendations.map((recommendation, index) => (
-            <div key={index} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-              <div className="flex-shrink-0 mt-0.5">
-                {recommendation.includes('✅') && <CheckCircle className="h-4 w-4 text-green-500" />}
-                {recommendation.includes('⚠️') && <AlertTriangle className="h-4 w-4 text-yellow-500" />}
-                {recommendation.includes('🔴') && <AlertTriangle className="h-4 w-4 text-red-500" />}
-                {recommendation.includes('💰') && <DollarSign className="h-4 w-4 text-green-500" />}
-                {recommendation.includes('📉') && <TrendingDown className="h-4 w-4 text-red-500" />}
-                {recommendation.includes('💸') && <TrendingDown className="h-4 w-4 text-red-500" />}
-                {recommendation.includes('💎') && <TrendingUp className="h-4 w-4 text-blue-500" />}
-                {recommendation.includes('🎁') && <Target className="h-4 w-4 text-purple-500" />}
-                {recommendation.includes('📊') && <BarChart3 className="h-4 w-4 text-gray-500" />}
-                {recommendation.includes('📈') && <TrendingUp className="h-4 w-4 text-green-500" />}
-              </div>
-              <span className="text-gray-700 text-sm leading-relaxed">
-                {recommendation.replace(/[✅⚠️🔴💰📉💸💎🎁📊📈]/g, '').trim()}
-              </span>
-            </div>
-          ))}
-        </div>
+      {/* Analiz Önerileri */}
+      <div className="mt-8">
+        <AnalysisRecommendations
+          financialRatios={financialRatios}
+          indicators={indicators}
+          patterns={patterns}
+          sentimentAnalysis={sentimentAnalysis}
+          riskAssessment={riskAssessment}
+        />
+      </div>
+
+      {/* AI Pattern Analysis */}
+      <div className="mt-8">
+        <AIPatternAnalysis
+          symbol={stockData.stockCode}
+          timeframe="1D"
+        />
+      </div>
+
+      {/* Market Sentiment Analysis */}
+      <div className="mt-8">
+        <MarketSentimentCard
+          symbol={stockData.stockCode}
+          onSentimentChange={(sentiment) => {
+            if (sentiment) {
+              fetchSentiment(stockData.stockCode);
+            }
+          }}
+        />
+      </div>
+
+      {/* Risk Analysis */}
+      <div className="mt-8">
+        <RiskAnalysisCard
+          symbol={stockData.stockCode}
+          onRiskChange={(risk) => {
+            if (risk) {
+              fetchRiskAnalysis(stockData.stockCode);
+            }
+          }}
+        />
+      </div>
+
+      {/* AI Trading Sinyalleri */}
+      <div className="mt-8">
+        <TradingSignals
+          symbols={[stockData.stockCode]}
+          marketData={{
+            [stockData.stockCode]: {
+              symbol: stockData.stockCode,
+              price: price?.price || 0,
+              volume: price?.volume || 0,
+              change: price?.changePercent || 0,
+              marketCap: analysis?.financialData?.totalAssets || 0,
+              pe: analysis?.ratios?.ebitdaProfitability?.returnOnAssets ? 
+                (price?.price || 0) / analysis.ratios.ebitdaProfitability.returnOnAssets : 0,
+              technicalIndicators: {
+                rsi: 50, // Varsayılan değer
+                macd: 0,
+                bollinger: {
+                  upper: (price?.price || 0) * 1.02,
+                  middle: price?.price || 0,
+                  lower: (price?.price || 0) * 0.98
+                },
+                sma20: price?.price || 0,
+                sma50: price?.price || 0,
+                ema12: price?.price || 0,
+                ema26: price?.price || 0
+              },
+              fundamentals: {
+                revenue: analysis?.financialData?.ebitda || 0,
+                earnings: analysis?.financialData?.netProfit || 0,
+                bookValue: analysis?.financialData?.equity || 0,
+                debt: analysis?.financialData?.financialDebts || 0,
+                cashFlow: analysis?.financialData?.cashAndEquivalents || 0
+              }
+            }
+          }}
+          portfolioContext={{
+            totalValue: analysis?.financialData?.totalAssets || 0,
+            positions: [{
+              symbol: stockData.stockCode,
+              quantity: 100, // Varsayılan değer
+              averagePrice: price?.price || 0,
+              currentPrice: price?.price || 0,
+              weight: 100 // %100 tek pozisyon
+            }],
+            cashBalance: analysis?.financialData?.cashAndEquivalents || 0,
+            riskTolerance: analysis?.riskLevel === 'Düşük' ? 'CONSERVATIVE' : 
+                          analysis?.riskLevel === 'Orta' ? 'MODERATE' : 'AGGRESSIVE',
+            investmentHorizon: 'MEDIUM_TERM',
+            objectives: ['GROWTH']
+          }}
+          autoRefresh={true}
+          refreshInterval={15}
+        />
       </div>
 
       {/* Son Güncelleme */}
@@ -1494,6 +1541,6 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
       </div>
     </div>
   );
-};
+});
 
 export default StockAnalysis;

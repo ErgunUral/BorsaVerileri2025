@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/72</span>
+                <span class='fraction'>0/76</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/70</span>
+                <span class='fraction'>0/74</span>
             </div>
         
             
@@ -241,7 +241,7 @@
 <a name='L176'></a><a href='#L176'>176</a>
 <a name='L177'></a><a href='#L177'>177</a>
 <a name='L178'></a><a href='#L178'>178</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -336,7 +336,7 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -381,7 +381,7 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -397,7 +397,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -418,7 +418,7 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { Request, Response, NextFunction } from 'express';
-import { logger } from '../utils/logger.js';
+<span class="cstat-no" title="statement not covered" >import logger from '../utils/logger.js';</span>
 &nbsp;
 // In-memory cache implementation
 interface CacheEntry {
@@ -510,10 +510,10 @@ class MemoryCache {
 }
 &nbsp;
 // Global cache instance
-export const cache = <span class="cstat-no" title="statement not covered" >new MemoryCache();</span>
+export const <span class="cstat-no" title="statement not covered" >cache = new MemoryCache();</span>
 &nbsp;
 // Cache middleware factory
-export function <span class="fstat-no" title="function not covered" >createCacheMiddleware(</span>ttlSeconds: number = <span class="branch-0 cbranch-no" title="branch not covered" >300)</span> {
+<span class="cstat-no" title="statement not covered" >export function <span class="fstat-no" title="function not covered" >c</span>reateCacheMiddleware(</span>ttlSeconds: number = <span class="branch-0 cbranch-no" title="branch not covered" >300)</span> {
 <span class="cstat-no" title="statement not covered" >  return <span class="fstat-no" title="function not covered" >(r</span>eq: Request, res: Response, next: NextFunction): void =&gt; {</span>
     // Only cache GET requests
 <span class="cstat-no" title="statement not covered" >    <span class="missing-if-branch" title="if path not taken" >I</span>if (req.method !== 'GET') {</span>
@@ -549,16 +549,16 @@ export function <span class="fstat-no" title="function not covered" >createCache
 }
 &nbsp;
 // Stock data cache middleware (longer TTL)
-export const stockDataCache = <span class="cstat-no" title="statement not covered" >createCacheMiddleware(600);</span> // 10 minutes
+export const <span class="cstat-no" title="statement not covered" >stockDataCache = createCacheMiddleware(600); </span>// 10 minutes
 &nbsp;
 // Financial analysis cache middleware (shorter TTL)
-export const analysisCache = <span class="cstat-no" title="statement not covered" >createCacheMiddleware(300);</span> // 5 minutes
+export const <span class="cstat-no" title="statement not covered" >analysisCache = createCacheMiddleware(300); </span>// 5 minutes
 &nbsp;
 // Price data cache middleware (very short TTL)
-export const priceCache = <span class="cstat-no" title="statement not covered" >createCacheMiddleware(60);</span> // 1 minute
+export const <span class="cstat-no" title="statement not covered" >priceCache = createCacheMiddleware(60); </span>// 1 minute
 &nbsp;
 // Cache invalidation middleware
-export function <span class="fstat-no" title="function not covered" >invalidateCache(</span>pattern?: string) {
+<span class="cstat-no" title="statement not covered" >export function <span class="fstat-no" title="function not covered" >i</span>nvalidateCache(</span>pattern?: string) {
 <span class="cstat-no" title="statement not covered" >  return <span class="fstat-no" title="function not covered" >(_</span>req: Request, _res: Response, next: NextFunction): void =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >    if (pattern) {</span>
       const stats = <span class="cstat-no" title="statement not covered" >cache.getStats();</span>
@@ -574,7 +574,7 @@ export function <span class="fstat-no" title="function not covered" >invalidateC
 }
 &nbsp;
 // Cache stats endpoint middleware
-export function <span class="fstat-no" title="function not covered" >getCacheStats(</span>_req: Request, res: Response): void {
+<span class="cstat-no" title="statement not covered" >export function <span class="fstat-no" title="function not covered" >g</span>etCacheStats(</span>_req: Request, res: Response): void {
   const stats = <span class="cstat-no" title="statement not covered" >cache.getStats();</span>
 <span class="cstat-no" title="statement not covered" >  res.json({</span>
     success: true,
@@ -601,7 +601,7 @@ export function <span class="fstat-no" title="function not covered" >getCacheSta
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-19T18:21:19.879Z
+                at 2025-09-22T11:00:43.802Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

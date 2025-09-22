@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/75</span>
+                <span class='fraction'>0/80</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/73</span>
+                <span class='fraction'>0/74</span>
             </div>
         
             
@@ -289,7 +289,7 @@
 <a name='L224'></a><a href='#L224'>224</a>
 <a name='L225'></a><a href='#L225'>225</a>
 <a name='L226'></a><a href='#L226'>226</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -514,7 +514,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { Request, Response, NextFunction } from 'express';
-import { performance } from 'perf_hooks';
+<span class="cstat-no" title="statement not covered" >import { performance } from 'perf_hooks';</span>
 &nbsp;
 interface PerformanceMetrics {
   requestCount: number;
@@ -639,10 +639,10 @@ class PerformanceMonitor {
 }
 &nbsp;
 // Global performance monitor instance
-export const performanceMonitor = <span class="cstat-no" title="statement not covered" >new PerformanceMonitor();</span>
+export const <span class="cstat-no" title="statement not covered" >performanceMonitor = new PerformanceMonitor();</span>
 &nbsp;
 // Performance monitoring middleware
-export const performanceMiddleware = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >(r</span>eq: Request, res: Response, next: NextFunction): void =&gt; {</span>
+export const <span class="cstat-no" title="statement not covered" >performanceMiddleware = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >(</span>r</span>eq: Request, res: Response, next: NextFunction): void =&gt; {</span>
   const startTime = <span class="cstat-no" title="statement not covered" >performance.now();</span>
 &nbsp;
   // Override res.end to capture response time
@@ -668,7 +668,7 @@ export const performanceMiddleware = <span class="cstat-no" title="statement not
 };
 &nbsp;
 // Health check middleware
-export const healthCheck = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >(_</span>req: Request, res: Response): void =&gt; {</span>
+export const <span class="cstat-no" title="statement not covered" >healthCheck = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >(</span>_</span>req: Request, res: Response): void =&gt; {</span>
   const metrics = <span class="cstat-no" title="statement not covered" >performanceMonitor.getMetrics();</span>
   const health = <span class="cstat-no" title="statement not covered" >{</span>
     status: 'healthy',
@@ -704,7 +704,7 @@ export const healthCheck = <span class="cstat-no" title="statement not covered" 
 };
 &nbsp;
 // Metrics endpoint
-export const metricsEndpoint = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >(r</span>eq: Request, res: Response): void =&gt; {</span>
+export const <span class="cstat-no" title="statement not covered" >metricsEndpoint = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >(</span>r</span>eq: Request, res: Response): void =&gt; {</span>
   const metrics = <span class="cstat-no" title="statement not covered" >performanceMonitor.getMetrics();</span>
   const limit = <span class="cstat-no" title="statement not covered" >parseInt(req.query['limit'] as string) || 100;</span>
   
@@ -719,7 +719,7 @@ export const metricsEndpoint = <span class="cstat-no" title="statement not cover
 };
 &nbsp;
 // Request logging middleware
-export const requestLogger = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >(r</span>eq: Request, res: Response, next: NextFunction): void =&gt; {</span>
+export const <span class="cstat-no" title="statement not covered" >requestLogger = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >(</span>r</span>eq: Request, res: Response, next: NextFunction): void =&gt; {</span>
   const startTime = <span class="cstat-no" title="statement not covered" >Date.now();</span>
   const { method, originalUrl, ip } = <span class="cstat-no" title="statement not covered" >req;</span>
   const userAgent = <span class="cstat-no" title="statement not covered" >req.get('User-Agent') || 'unknown';</span>
@@ -745,7 +745,7 @@ export { PerformanceMetrics, RequestMetrics };</pre></td></tr></table></pre>
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-19T18:21:19.879Z
+                at 2025-09-22T11:00:43.802Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

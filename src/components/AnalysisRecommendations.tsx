@@ -1,281 +1,445 @@
-import React from 'react';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  AlertTriangle, 
-  CheckCircle, 
-  Info,
-  DollarSign,
-  Shield,
-  Zap,
-  Target
-} from 'lucide-react';
-import { CalculationResult } from '../utils/financialCalculations';
+import React, { useMemo } from 'react';
+import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Info, Target } from 'lucide-react';
 
-interface AnalysisRecommendationsProps {
-  calculations: CalculationResult[];
-  stockSymbol: string;
+interface CalculationResult {
+  name: string;
+  value: number;
+  formula: string;
+  interpretation: string;
+  category: string;
 }
 
 interface Recommendation {
-  type: 'positive' | 'negative' | 'warning' | 'info';
+  id: string;
+  type: 'buy' | 'sell' | 'hold' | 'warning' | 'info';
   title: string;
   description: string;
-  icon: React.ReactNode;
   priority: 'high' | 'medium' | 'low';
+  category: string;
+  confidence: number;
 }
 
-const AnalysisRecommendations: React.FC<AnalysisRecommendationsProps> = ({ 
-  calculations, 
-  stockSymbol 
+interface AnalysisRecommendationsProps {
+  financialRatios: CalculationResult[];
+  technicalIndicators?: any;
+  marketSentiment?: any;
+  riskMetrics?: any;
+}
+
+const AnalysisRecommendations: React.FC<AnalysisRecommendationsProps> = ({
+  financialRatios,
+  technicalIndicators,
+  marketSentiment,
+  riskMetrics
 }) => {
-  const generateRecommendations = (): Recommendation[] => {
-    const recommendations: Recommendation[] = [];
+  // Analiz önerilerini hesapla
+  const recommendations = useMemo((): Recommendation[] => {
+    const recs: Recommendation[] = [];
     
-    // Likidite analizi
-    const currentRatio = calculations.find(c => c.label === 'Cari Oran');
-    if (currentRatio && currentRatio.value !== null) {
-      if (currentRatio.value >= 2.0) {
-        recommendations.push({
-          type: 'positive',
-          title: 'Güçlü Likidite Pozisyonu',
-          description: `${stockSymbol} şirketi ${currentRatio.value.toFixed(2)} cari oran ile güçlü bir likidite pozisyonuna sahip. Kısa vadeli borçlarını rahatlıkla karşılayabilir.`,
-          icon: <CheckCircle className="h-5 w-5" />,
-          priority: 'medium'
-        });
-      } else if (currentRatio.value < 1.0) {
-        recommendations.push({
-          type: 'negative',
-          title: 'Likidite Riski',
-          description: `${stockSymbol} şirketinin cari oranı ${currentRatio.value.toFixed(2)} ile 1'in altında. Kısa vadeli borç ödeme konusunda dikkatli olunmalı.`,
-          icon: <AlertTriangle className="h-5 w-5" />,
-          priority: 'high'
-        });
+    // Finansal oran analizleri
+    financialRatios.forEach((ratio, index) => {
+      const id = `ratio_${index}`;
+      
+      if (ratio.name === 'Cari Oran') {
+        if (ratio.value > 2) {
+          recs.push({
+            id: `${id}_high`,
+            type: 'warning',
+            title: 'Yüksek Cari Oran',
+            description: 'Cari oran çok yüksek. Nakit yönetimini gözden geçirin ve yatırım fırsatlarını değerlendirin.',
+            priority: 'medium',
+            category: 'Likidite',
+            confidence: 85
+          });
+        } else if (ratio.value < 1) {
+          recs.push({
+            id: `${id}_low`,
+            type: 'sell',
+            title: 'Düşük Likidite Riski',
+            description: 'Cari oran 1\'in altında. Kısa vadeli ödeme güçlüğü riski var.',
+            priority: 'high',
+            category: 'Likidite',
+            confidence: 90
+          });
+        } else {
+          recs.push({
+            id: `${id}_good`,
+            type: 'hold',
+            title: 'Sağlıklı Likidite',
+            description: 'Cari oran ideal seviyede. Likidite durumu sağlıklı.',
+            priority: 'low',
+            category: 'Likidite',
+            confidence: 80
+          });
+        }
       }
-    }
-    
-    // Kaldıraç analizi
-    const debtToEquity = calculations.find(c => c.label === 'Borç/Özkaynak Oranı');
-    if (debtToEquity && debtToEquity.value !== null) {
-      if (debtToEquity.value > 2.0) {
-        recommendations.push({
-          type: 'warning',
-          title: 'Yüksek Borçluluk',
-          description: `${stockSymbol} şirketinin borç/özkaynak oranı ${debtToEquity.value.toFixed(2)} ile yüksek. Finansal risk artabilir.`,
-          icon: <TrendingDown className="h-5 w-5" />,
-          priority: 'high'
-        });
-      } else if (debtToEquity.value < 0.5) {
-        recommendations.push({
-          type: 'info',
-          title: 'Düşük Kaldıraç Kullanımı',
-          description: `${stockSymbol} şirketi ${debtToEquity.value.toFixed(2)} borç/özkaynak oranı ile konservatif bir finansman yapısına sahip.`,
-          icon: <Shield className="h-5 w-5" />,
-          priority: 'low'
-        });
+      
+      if (ratio.name === 'Özkaynak Karlılığı (ROE)') {
+        if (ratio.value > 20) {
+          recs.push({
+            id: `${id}_excellent`,
+            type: 'buy',
+            title: 'Mükemmel Karlılık',
+            description: 'ROE %20\'nin üzerinde. Güçlü karlılık performansı.',
+            priority: 'high',
+            category: 'Karlılık',
+            confidence: 95
+          });
+        } else if (ratio.value < 5) {
+          recs.push({
+            id: `${id}_poor`,
+            type: 'warning',
+            title: 'Düşük Karlılık',
+            description: 'ROE %5\'in altında. Karlılık performansını artırma stratejileri gerekli.',
+            priority: 'medium',
+            category: 'Karlılık',
+            confidence: 85
+          });
+        }
       }
-    }
-    
-    // Karlılık analizi
-    const roe = calculations.find(c => c.label === 'ROE (Özkaynak Karlılığı)');
-    if (roe && roe.value !== null) {
-      if (roe.value >= 0.20) {
-        recommendations.push({
-          type: 'positive',
-          title: 'Yüksek Özkaynak Karlılığı',
-          description: `${stockSymbol} şirketi %${(roe.value * 100).toFixed(1)} ROE ile özkaynağını çok verimli kullanıyor.`,
-          icon: <TrendingUp className="h-5 w-5" />,
-          priority: 'high'
-        });
-      } else if (roe.value < 0.05) {
-        recommendations.push({
-          type: 'negative',
-          title: 'Düşük Özkaynak Karlılığı',
-          description: `${stockSymbol} şirketinin ROE'si %${(roe.value * 100).toFixed(1)} ile düşük. Karlılık artırma stratejileri değerlendirilebilir.`,
-          icon: <TrendingDown className="h-5 w-5" />,
-          priority: 'medium'
-        });
+      
+      if (ratio.name === 'Borç Oranı') {
+        if (ratio.value > 0.7) {
+          recs.push({
+            id: `${id}_high_debt`,
+            type: 'sell',
+            title: 'Yüksek Borç Riski',
+            description: 'Borç oranı %70\'in üzerinde. Finansal risk yüksek.',
+            priority: 'high',
+            category: 'Risk',
+            confidence: 90
+          });
+        } else if (ratio.value < 0.3) {
+          recs.push({
+            id: `${id}_conservative`,
+            type: 'info',
+            title: 'Konservatif Borç Yapısı',
+            description: 'Düşük borç oranı. Kaldıraç kullanarak büyüme fırsatları değerlendirilebilir.',
+            priority: 'low',
+            category: 'Strateji',
+            confidence: 75
+          });
+        }
       }
-    }
-    
-    const roa = calculations.find(c => c.label === 'ROA (Aktif Karlılığı)');
-    if (roa && roa.value !== null) {
-      if (roa.value >= 0.10) {
-        recommendations.push({
-          type: 'positive',
-          title: 'Verimli Varlık Kullanımı',
-          description: `${stockSymbol} şirketi %${(roa.value * 100).toFixed(1)} ROA ile varlıklarını çok verimli kullanıyor.`,
-          icon: <Zap className="h-5 w-5" />,
-          priority: 'medium'
-        });
-      }
-    }
-    
-    // Net kar marjı analizi
-    const netMargin = calculations.find(c => c.label === 'Net Kar Marjı');
-    if (netMargin && netMargin.value !== null) {
-      if (netMargin.value >= 0.15) {
-        recommendations.push({
-          type: 'positive',
-          title: 'Yüksek Kar Marjı',
-          description: `${stockSymbol} şirketi %${(netMargin.value * 100).toFixed(1)} net kar marjı ile güçlü bir karlılık gösteriyor.`,
-          icon: <DollarSign className="h-5 w-5" />,
-          priority: 'medium'
-        });
-      } else if (netMargin.value < 0.05) {
-        recommendations.push({
-          type: 'warning',
-          title: 'Düşük Kar Marjı',
-          description: `${stockSymbol} şirketinin net kar marjı %${(netMargin.value * 100).toFixed(1)} ile düşük. Maliyet optimizasyonu gerekebilir.`,
-          icon: <Target className="h-5 w-5" />,
-          priority: 'medium'
-        });
-      }
-    }
-    
-    // Genel değerlendirme
-    const positiveCount = recommendations.filter(r => r.type === 'positive').length;
-    const negativeCount = recommendations.filter(r => r.type === 'negative').length;
-    
-    if (positiveCount > negativeCount) {
-      recommendations.push({
-        type: 'positive',
-        title: 'Genel Değerlendirme: Olumlu',
-        description: `${stockSymbol} şirketi genel olarak sağlıklı finansal göstergeler sergiliyor. Yatırım için değerlendirilebilir.`,
-        icon: <CheckCircle className="h-5 w-5" />,
-        priority: 'high'
-      });
-    } else if (negativeCount > positiveCount) {
-      recommendations.push({
-        type: 'warning',
-        title: 'Genel Değerlendirme: Dikkatli',
-        description: `${stockSymbol} şirketinde bazı finansal riskler mevcut. Detaylı analiz yapılması önerilir.`,
-        icon: <AlertTriangle className="h-5 w-5" />,
-        priority: 'high'
-      });
-    }
-    
-    // Öncelik sırasına göre sırala
-    return recommendations.sort((a, b) => {
-      const priorityOrder = { high: 3, medium: 2, low: 1 };
-      return priorityOrder[b.priority] - priorityOrder[a.priority];
     });
-  };
+    
+    // Teknik analiz önerileri
+    if (technicalIndicators) {
+      if (technicalIndicators.rsi && technicalIndicators.rsi.current) {
+        const rsi = technicalIndicators.rsi.current;
+        if (rsi > 70) {
+          recs.push({
+            id: 'rsi_overbought',
+            type: 'sell',
+            title: 'RSI Aşırı Alım',
+            description: `RSI ${rsi.toFixed(1)} seviyesinde. Aşırı alım bölgesinde, satış sinyali.`,
+            priority: 'high',
+            category: 'Teknik',
+            confidence: 85
+          });
+        } else if (rsi < 30) {
+          recs.push({
+            id: 'rsi_oversold',
+            type: 'buy',
+            title: 'RSI Aşırı Satım',
+            description: `RSI ${rsi.toFixed(1)} seviyesinde. Aşırı satım bölgesinde, alım fırsatı.`,
+            priority: 'high',
+            category: 'Teknik',
+            confidence: 85
+          });
+        }
+      }
+      
+      if (technicalIndicators.macd) {
+        const { signal, histogram } = technicalIndicators.macd;
+        if (signal === 'bullish') {
+          recs.push({
+            id: 'macd_bullish',
+            type: 'buy',
+            title: 'MACD Yükseliş Sinyali',
+            description: 'MACD çizgisi sinyal çizgisini yukarı kesti. Yükseliş trendi başlayabilir.',
+            priority: 'medium',
+            category: 'Teknik',
+            confidence: 80
+          });
+        } else if (signal === 'bearish') {
+          recs.push({
+            id: 'macd_bearish',
+            type: 'sell',
+            title: 'MACD Düşüş Sinyali',
+            description: 'MACD çizgisi sinyal çizgisini aşağı kesti. Düşüş trendi başlayabilir.',
+            priority: 'medium',
+            category: 'Teknik',
+            confidence: 80
+          });
+        }
+      }
+    }
+    
+    // Market sentiment önerileri
+    if (marketSentiment && marketSentiment.overall) {
+      const sentiment = marketSentiment.overall;
+      if (sentiment > 0.7) {
+        recs.push({
+          id: 'sentiment_positive',
+          type: 'buy',
+          title: 'Pozitif Market Duyarlılığı',
+          description: 'Market duyarlılığı çok pozitif. Yatırım fırsatları değerlendirilebilir.',
+          priority: 'medium',
+          category: 'Sentiment',
+          confidence: 75
+        });
+      } else if (sentiment < 0.3) {
+        recs.push({
+          id: 'sentiment_negative',
+          type: 'warning',
+          title: 'Negatif Market Duyarlılığı',
+          description: 'Market duyarlılığı negatif. Dikkatli pozisyon alın.',
+          priority: 'medium',
+          category: 'Sentiment',
+          confidence: 75
+        });
+      }
+    }
+    
+    // Risk analizi önerileri
+    if (riskMetrics) {
+      if (riskMetrics.volatility > 0.3) {
+        recs.push({
+          id: 'high_volatility',
+          type: 'warning',
+          title: 'Yüksek Volatilite',
+          description: 'Volatilite yüksek seviyede. Risk yönetimi stratejileri uygulayın.',
+          priority: 'high',
+          category: 'Risk',
+          confidence: 90
+        });
+      }
+      
+      if (riskMetrics.sharpeRatio && riskMetrics.sharpeRatio < 0.5) {
+        recs.push({
+          id: 'low_sharpe',
+          type: 'warning',
+          title: 'Düşük Risk-Getiri Oranı',
+          description: 'Sharpe oranı düşük. Risk-getiri dengesini gözden geçirin.',
+          priority: 'medium',
+          category: 'Risk',
+          confidence: 80
+        });
+      }
+    }
+    
+    // Öncelik ve güven skoruna göre sırala
+    return recs.sort((a, b) => {
+      const priorityOrder = { high: 3, medium: 2, low: 1 };
+      const priorityDiff = priorityOrder[b.priority] - priorityOrder[a.priority];
+      if (priorityDiff !== 0) return priorityDiff;
+      return b.confidence - a.confidence;
+    });
+  }, [financialRatios, technicalIndicators, marketSentiment, riskMetrics]);
   
-  const recommendations = generateRecommendations();
-  
+  // Öneri tipine göre ikon ve renk
   const getRecommendationStyle = (type: Recommendation['type']) => {
     switch (type) {
-      case 'positive':
-        return 'bg-green-50 border-green-200 text-green-800';
-      case 'negative':
-        return 'bg-red-50 border-red-200 text-red-800';
+      case 'buy':
+        return {
+          icon: TrendingUp,
+          bgColor: 'bg-green-50',
+          borderColor: 'border-green-200',
+          iconColor: 'text-green-600',
+          badgeColor: 'bg-green-100 text-green-800'
+        };
+      case 'sell':
+        return {
+          icon: TrendingDown,
+          bgColor: 'bg-red-50',
+          borderColor: 'border-red-200',
+          iconColor: 'text-red-600',
+          badgeColor: 'bg-red-100 text-red-800'
+        };
+      case 'hold':
+        return {
+          icon: Target,
+          bgColor: 'bg-blue-50',
+          borderColor: 'border-blue-200',
+          iconColor: 'text-blue-600',
+          badgeColor: 'bg-blue-100 text-blue-800'
+        };
       case 'warning':
-        return 'bg-yellow-50 border-yellow-200 text-yellow-800';
+        return {
+          icon: AlertTriangle,
+          bgColor: 'bg-yellow-50',
+          borderColor: 'border-yellow-200',
+          iconColor: 'text-yellow-600',
+          badgeColor: 'bg-yellow-100 text-yellow-800'
+        };
       case 'info':
-        return 'bg-blue-50 border-blue-200 text-blue-800';
+        return {
+          icon: Info,
+          bgColor: 'bg-gray-50',
+          borderColor: 'border-gray-200',
+          iconColor: 'text-gray-600',
+          badgeColor: 'bg-gray-100 text-gray-800'
+        };
       default:
-        return 'bg-gray-50 border-gray-200 text-gray-800';
+        return {
+          icon: CheckCircle,
+          bgColor: 'bg-gray-50',
+          borderColor: 'border-gray-200',
+          iconColor: 'text-gray-600',
+          badgeColor: 'bg-gray-100 text-gray-800'
+        };
     }
   };
   
-  const getIconColor = (type: Recommendation['type']) => {
-    switch (type) {
-      case 'positive':
-        return 'text-green-600';
-      case 'negative':
-        return 'text-red-600';
-      case 'warning':
-        return 'text-yellow-600';
-      case 'info':
-        return 'text-blue-600';
-      default:
-        return 'text-gray-600';
-    }
-  };
-  
+  // Öncelik badge'i
   const getPriorityBadge = (priority: Recommendation['priority']) => {
     switch (priority) {
       case 'high':
-        return 'bg-red-100 text-red-800 border-red-200';
+        return 'bg-red-100 text-red-800';
       case 'medium':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+        return 'bg-yellow-100 text-yellow-800';
       case 'low':
-        return 'bg-green-100 text-green-800 border-green-200';
+        return 'bg-green-100 text-green-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
   };
   
-  const getPriorityLabel = (priority: Recommendation['priority']) => {
-    switch (priority) {
-      case 'high':
-        return 'Yüksek';
-      case 'medium':
-        return 'Orta';
-      case 'low':
-        return 'Düşük';
-    }
-  };
-  
+  // Kategori istatistikleri
+  const categoryStats = useMemo(() => {
+    const stats: Record<string, { count: number; highPriority: number }> = {};
+    
+    recommendations.forEach(rec => {
+      if (!stats[rec.category]) {
+        stats[rec.category] = { count: 0, highPriority: 0 };
+      }
+      stats[rec.category].count++;
+      if (rec.priority === 'high') {
+        stats[rec.category].highPriority++;
+      }
+    });
+    
+    return stats;
+  }, [recommendations]);
+
   if (recommendations.length === 0) {
     return (
       <div className="bg-white rounded-xl shadow-lg p-6">
         <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center space-x-2">
-          <Info className="h-5 w-5 text-blue-600" />
+          <Target className="h-5 w-5 text-blue-600" />
           <span>Analiz Önerileri</span>
         </h3>
         <div className="text-center py-8">
-          <Info className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">Henüz yeterli veri bulunmuyor.</p>
-          <p className="text-sm text-gray-400 mt-2">Finansal veriler yüklendikten sonra öneriler görüntülenecek.</p>
+          <CheckCircle className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-500">Henüz analiz önerisi bulunmuyor.</p>
+          <p className="text-sm text-gray-400 mt-2">Finansal veriler analiz edildikçe öneriler burada görünecek.</p>
         </div>
       </div>
     );
   }
-  
+
   return (
     <div className="bg-white rounded-xl shadow-lg p-6">
-      <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center space-x-2">
-        <Info className="h-5 w-5 text-blue-600" />
-        <span>Analiz Önerileri</span>
-        <span className="text-sm font-normal text-gray-500">({recommendations.length} öneri)</span>
-      </h3>
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-lg font-bold text-gray-900 flex items-center space-x-2">
+          <Target className="h-5 w-5 text-blue-600" />
+          <span>Analiz Önerileri</span>
+        </h3>
+        
+        <div className="text-sm text-gray-600">
+          {recommendations.length} öneri • {Object.values(categoryStats).reduce((sum, stat) => sum + stat.highPriority, 0)} yüksek öncelik
+        </div>
+      </div>
       
-      <div className="space-y-4">
-        {recommendations.map((recommendation, index) => (
-          <div
-            key={index}
-            className={`p-4 rounded-lg border-2 ${getRecommendationStyle(recommendation.type)}`}
-          >
-            <div className="flex items-start space-x-3">
-              <div className={`flex-shrink-0 ${getIconColor(recommendation.type)}`}>
-                {recommendation.icon}
+      {/* Kategori Özeti */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        {Object.entries(categoryStats).map(([category, stats]) => (
+          <div key={category} className="bg-gray-50 p-3 rounded-lg text-center">
+            <div className="text-lg font-bold text-gray-900">{stats.count}</div>
+            <div className="text-xs text-gray-600">{category}</div>
+            {stats.highPriority > 0 && (
+              <div className="text-xs text-red-600 font-medium mt-1">
+                {stats.highPriority} acil
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-semibold text-sm">
-                    {recommendation.title}
-                  </h4>
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getPriorityBadge(recommendation.priority)}`}>
-                    {getPriorityLabel(recommendation.priority)}
-                  </span>
-                </div>
-                <p className="text-sm leading-relaxed">
-                  {recommendation.description}
-                </p>
-              </div>
-            </div>
+            )}
           </div>
         ))}
       </div>
       
-      <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-        <p className="text-xs text-gray-600 leading-relaxed">
-          <strong>Uyarı:</strong> Bu öneriler sadece finansal verilere dayalı otomatik analizlerdir. 
-          Yatırım kararları vermeden önce detaylı araştırma yapmanız ve profesyonel danışmanlık almanız önerilir.
+      {/* Öneriler Listesi */}
+      <div className="space-y-4 max-h-96 overflow-y-auto">
+        {recommendations.map((recommendation) => {
+          const style = getRecommendationStyle(recommendation.type);
+          const IconComponent = style.icon;
+          
+          return (
+            <div
+              key={recommendation.id}
+              className={`p-4 rounded-lg border ${style.bgColor} ${style.borderColor} transition-all hover:shadow-md`}
+            >
+              <div className="flex items-start space-x-3">
+                <div className={`p-2 rounded-lg ${style.iconColor} bg-white`}>
+                  <IconComponent className="h-5 w-5" />
+                </div>
+                
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-semibold text-gray-900 truncate">
+                      {recommendation.title}
+                    </h4>
+                    
+                    <div className="flex items-center space-x-2 ml-2">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getPriorityBadge(recommendation.priority)}`}>
+                        {recommendation.priority === 'high' ? 'Yüksek' : 
+                         recommendation.priority === 'medium' ? 'Orta' : 'Düşük'}
+                      </span>
+                      
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${style.badgeColor}`}>
+                        {recommendation.category}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <p className="text-sm text-gray-700 mb-3">
+                    {recommendation.description}
+                  </p>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs text-gray-500">
+                      Güven: %{recommendation.confidence}
+                    </div>
+                    
+                    <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                      <div 
+                        className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                        style={{ width: `${recommendation.confidence}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      
+      {/* Genel Değerlendirme */}
+      <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+        <div className="flex items-center space-x-2 mb-2">
+          <Info className="h-4 w-4 text-blue-600" />
+          <span className="font-medium text-blue-900">Genel Değerlendirme</span>
+        </div>
+        <p className="text-sm text-blue-800">
+          {recommendations.filter(r => r.priority === 'high').length > 0
+            ? 'Acil dikkat gerektiren durumlar tespit edildi. Yüksek öncelikli önerileri önce değerlendirin.'
+            : recommendations.filter(r => r.type === 'buy').length > recommendations.filter(r => r.type === 'sell').length
+            ? 'Genel olarak pozitif sinyaller ağırlıkta. Yatırım fırsatları değerlendirilebilir.'
+            : 'Karışık sinyaller mevcut. Dikkatli analiz ve risk yönetimi önerilir.'}
         </p>
       </div>
     </div>
   );
 };
 
-export default AnalysisRecommendations;
+export default React.memo(AnalysisRecommendations);

@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/47</span>
+                <span class='fraction'>0/52</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/47</span>
+                <span class='fraction'>0/48</span>
             </div>
         
             
@@ -209,7 +209,7 @@
 <a name='L144'></a><a href='#L144'>144</a>
 <a name='L145'></a><a href='#L145'>145</a>
 <a name='L146'></a><a href='#L146'>146</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -354,10 +354,10 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { Request, Response, NextFunction } from 'express';
-import { body, param, query, validationResult } from 'express-validator';
+<span class="cstat-no" title="statement not covered" >import { body, param, query, validationResult } from 'express-validator';</span>
 &nbsp;
 // Validation error handler
-export const handleValidationErrors = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >(r</span>eq: Request, res: Response, next: NextFunction): void =&gt; {</span>
+export const <span class="cstat-no" title="statement not covered" >handleValidationErrors = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >(</span>r</span>eq: Request, res: Response, next: NextFunction): void =&gt; {</span>
   const errors = <span class="cstat-no" title="statement not covered" >validationResult(req);</span>
 <span class="cstat-no" title="statement not covered" >  <span class="missing-if-branch" title="if path not taken" >I</span>if (!errors.isEmpty()) {</span>
 <span class="cstat-no" title="statement not covered" >    res.status(400).json({</span>
@@ -371,7 +371,7 @@ export const handleValidationErrors = <span class="cstat-no" title="statement no
 };
 &nbsp;
 // Stock code validation
-export const validateStockCode = <span class="cstat-no" title="statement not covered" >[</span>
+export const <span class="cstat-no" title="statement not covered" >validateStockCode = [</span>
   param('stockCode')
     .isLength({ min: 3, max: 6 })
     .withMessage('Stock code must be between 3-6 characters')
@@ -382,7 +382,7 @@ export const validateStockCode = <span class="cstat-no" title="statement not cov
 ];
 &nbsp;
 // Query parameters validation
-export const validateStockQuery = <span class="cstat-no" title="statement not covered" >[</span>
+export const <span class="cstat-no" title="statement not covered" >validateStockQuery = [</span>
   query('stockCode')
     .optional()
     .isLength({ min: 3, max: 6 })
@@ -404,7 +404,7 @@ export const validateStockQuery = <span class="cstat-no" title="statement not co
 ];
 &nbsp;
 // Log query validation
-export const validateLogQuery = <span class="cstat-no" title="statement not covered" >[</span>
+export const <span class="cstat-no" title="statement not covered" >validateLogQuery = [</span>
   query('type')
     .optional()
     .isIn(['application', 'error', 'api', 'combined'])
@@ -418,7 +418,7 @@ export const validateLogQuery = <span class="cstat-no" title="statement not cove
 ];
 &nbsp;
 // Test log validation
-export const validateTestLog = <span class="cstat-no" title="statement not covered" >[</span>
+export const <span class="cstat-no" title="statement not covered" >validateTestLog = [</span>
   body('level')
     .optional()
     .isIn(['error', 'warn', 'info', 'debug'])
@@ -433,7 +433,7 @@ export const validateTestLog = <span class="cstat-no" title="statement not cover
 ];
 &nbsp;
 // Sanitize input
-export const sanitizeInput = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >(r</span>eq: Request, _res: Response, next: NextFunction): void =&gt; {</span>
+export const <span class="cstat-no" title="statement not covered" >sanitizeInput = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >(</span>r</span>eq: Request, _res: Response, next: NextFunction): void =&gt; {</span>
   // Remove potentially dangerous characters
   const sanitize = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >(o</span>bj: unknown): unknown =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >    <span class="missing-if-branch" title="if path not taken" >I</span>if (typeof obj === 'string') {</span>
@@ -457,7 +457,7 @@ export const sanitizeInput = <span class="cstat-no" title="statement not covered
 };
 &nbsp;
 // Rate limiting per endpoint
-export const createEndpointLimiter = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >(w</span>indowMs: number, max: number) =&gt; {</span>
+export const <span class="cstat-no" title="statement not covered" >createEndpointLimiter = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >(</span>w</span>indowMs: number, max: number) =&gt; {</span>
   const requests = <span class="cstat-no" title="statement not covered" >new Map&lt;string, { count: number; resetTime: number }&gt;();</span>
   
 <span class="cstat-no" title="statement not covered" >  return <span class="fstat-no" title="function not covered" >(r</span>eq: Request, res: Response, next: NextFunction): void =&gt; {</span>
@@ -486,7 +486,7 @@ export const createEndpointLimiter = <span class="cstat-no" title="statement not
 };
 &nbsp;
 // Security headers
-export const securityHeaders = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >(_</span>req: Request, res: Response, next: NextFunction): void =&gt; {</span>
+export const <span class="cstat-no" title="statement not covered" >securityHeaders = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >(</span>_</span>req: Request, res: Response, next: NextFunction): void =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >  res.setHeader('X-Content-Type-Options', 'nosniff');</span>
 <span class="cstat-no" title="statement not covered" >  res.setHeader('X-Frame-Options', 'DENY');</span>
 <span class="cstat-no" title="statement not covered" >  res.setHeader('X-XSS-Protection', '1; mode=block');</span>
@@ -505,7 +505,7 @@ export const securityHeaders = <span class="cstat-no" title="statement not cover
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-19T18:21:19.879Z
+                at 2025-09-22T11:00:43.802Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

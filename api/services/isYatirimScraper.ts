@@ -1,6 +1,6 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import { logger } from '../utils/logger.js';
+import logger from '../utils/logger.js';
 
 export interface FinancialData {
   donenVarliklar?: number;           // Dönen Varlıklar

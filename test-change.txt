@@ -1,3 +1,0 @@
-Test dosyası - Otomatik deploy script testi
-Oluşturulma zamanı: $(date)
-Bu dosya script'in çalışıp çalışmadığını test etmek için oluşturulmuştur.
