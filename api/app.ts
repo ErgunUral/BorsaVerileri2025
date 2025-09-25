@@ -19,9 +19,13 @@ import patternRecognitionRoutes from './routes/patternRecognition.js';
 import advancedPatternsRoutes from './routes/advancedPatterns.js';
 import tradingSignalsRoutes from './routes/tradingSignals.js';
 import aiPatternsRoutes from './routes/aiPatterns.js';
+import figmaRoutes from './routes/figma';
+import componentMappingRoutes from './routes/componentMapping';
+import dataManagementRoutes from './routes/dataManagement.js';
 import logger, { requestLogger, errorLogger } from './utils/logger.js';
-import { performanceMiddleware } from './middleware/monitoring.js';
+import { performanceMiddleware, healthCheck, metricsEndpoint } from './middleware/monitoring.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import { getCacheStats } from './middleware/cache.js';
 
 // for esm mode
 // const __filename = fileURLToPath(import.meta.url);
@@ -61,16 +65,16 @@ app.use('/api/pattern-recognition', patternRecognitionRoutes);
 app.use('/api/advanced-patterns', advancedPatternsRoutes);
 app.use('/api/trading-signals', tradingSignalsRoutes);
 app.use('/api/ai-patterns', aiPatternsRoutes);
+app.use('/api/figma', figmaRoutes);
+app.use('/api/component-mapping', componentMappingRoutes);
+app.use('/api/data-management', dataManagementRoutes);
 
 /**
- * health
+ * Health and monitoring endpoints
  */
-app.use('/api/health', (_req: Request, res: Response, _next: NextFunction): void => {
-  res.status(200).json({
-    success: true,
-    message: 'ok'
-  });
-});
+app.get('/api/health', healthCheck);
+app.get('/api/metrics', metricsEndpoint);
+app.get('/api/cache/stats', getCacheStats);
 
 // 404 handler
 app.use(notFoundHandler);

@@ -130,6 +130,73 @@ export const createEndpointLimiter = (windowMs: number, max: number) => {
   };
 };
 
+// Figma connection validation
+export const validateFigmaConnection = [
+  body('fileId')
+    .notEmpty()
+    .withMessage('File ID is required')
+    .matches(/^[a-zA-Z0-9]{22,}$/)
+    .withMessage('Invalid Figma file ID format'),
+  body('apiKey')
+    .notEmpty()
+    .withMessage('API key is required')
+    .isLength({ min: 20 })
+    .withMessage('Invalid API key format'),
+  body('fileName')
+    .notEmpty()
+    .withMessage('File name is required')
+    .isLength({ min: 1, max: 255 })
+    .withMessage('File name must be between 1 and 255 characters')
+    .trim(),
+  handleValidationErrors
+];
+
+// Figma token sync validation
+export const validateTokenSync = [
+  body('connectionId')
+    .notEmpty()
+    .withMessage('Connection ID is required')
+    .isUUID()
+    .withMessage('Invalid connection ID format'),
+  body('tokenTypes')
+    .optional()
+    .isArray()
+    .withMessage('Token types must be an array')
+    .custom((value) => {
+      const validTypes = ['colors', 'typography', 'spacing', 'shadows'];
+      const invalidTypes = value.filter((type: string) => !validTypes.includes(type));
+      if (invalidTypes.length > 0) {
+        throw new Error(`Invalid token types: ${invalidTypes.join(', ')}`);
+      }
+      return true;
+    }),
+  handleValidationErrors
+];
+
+// Figma component mapping validation
+export const validateComponentMapping = [
+  body('connectionId')
+    .notEmpty()
+    .withMessage('Connection ID is required')
+    .isUUID()
+    .withMessage('Invalid connection ID format'),
+  body('figmaComponentId')
+    .notEmpty()
+    .withMessage('Figma component ID is required')
+    .trim(),
+  body('reactComponentName')
+    .notEmpty()
+    .withMessage('React component name is required')
+    .matches(/^[A-Z][a-zA-Z0-9]*$/)
+    .withMessage('React component name must be in PascalCase format')
+    .trim(),
+  body('propMappings')
+    .optional()
+    .isObject()
+    .withMessage('Prop mappings must be an object'),
+  handleValidationErrors
+];
+
 // Security headers
 export const securityHeaders = (_req: Request, res: Response, next: NextFunction): void => {
   res.setHeader('X-Content-Type-Options', 'nosniff');

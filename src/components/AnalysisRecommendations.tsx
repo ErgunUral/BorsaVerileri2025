@@ -151,7 +151,7 @@ const AnalysisRecommendations: React.FC<AnalysisRecommendationsProps> = ({
       }
       
       if (technicalIndicators.macd) {
-        const { signal, histogram } = technicalIndicators.macd;
+        const { signal } = technicalIndicators.macd;
         if (signal === 'bullish') {
           recs.push({
             id: 'macd_bullish',

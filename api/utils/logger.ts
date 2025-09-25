@@ -1,5 +1,5 @@
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Log seviyeleri
 export enum LogLevel {
@@ -15,7 +15,7 @@ interface LogEntry {
   level: string;
   message: string;
   data?: any;
-  stack?: string;
+  stack?: string | undefined;
   userId?: string;
   sessionId?: string;
   requestId?: string;
@@ -40,8 +40,8 @@ class Logger {
 
   constructor(config?: Partial<LoggerConfig>) {
     this.config = {
-      level: process.env.NODE_ENV === 'production' ? LogLevel.INFO : LogLevel.DEBUG,
-      enableConsole: process.env.NODE_ENV !== 'production',
+      level: process.env['NODE_ENV'] === 'production' ? LogLevel.INFO : LogLevel.DEBUG,
+      enableConsole: process.env['NODE_ENV'] !== 'production',
       enableFile: true,
       logDir: path.join(process.cwd(), 'logs'),
       maxFileSize: 10, // 10MB
@@ -177,7 +177,7 @@ class Logger {
       level: levelName,
       message,
       data,
-      stack: error?.stack
+      stack: error?.stack || undefined
     };
 
     // Console'a yazdır (development'ta)
@@ -328,7 +328,7 @@ export const requestLogger = (req: any, res: any, next: any) => {
 };
 
 // Error handler middleware
-export const errorLogger = (error: Error, req: any, res: any, next: any) => {
+export const errorLogger = (error: Error, req: any, _res: any, next: any) => {
   logger.error('Request error', error, {
     method: req.method,
     url: req.url,
@@ -341,31 +341,33 @@ export const errorLogger = (error: Error, req: any, res: any, next: any) => {
   next(error);
 };
 
-// Graceful shutdown handler
-process.on('SIGTERM', async () => {
-  logger.info('Received SIGTERM, cleaning up logs...');
-  await logger.cleanup();
-  process.exit(0);
-});
-
-process.on('SIGINT', async () => {
-  logger.info('Received SIGINT, cleaning up logs...');
-  await logger.cleanup();
-  process.exit(0);
-});
-
-// Unhandled rejection handler
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection', new Error(String(reason)), {
-    promise: promise.toString()
+// Graceful shutdown handler - only in production
+if (process.env['NODE_ENV'] !== 'test') {
+  process.on('SIGTERM', async () => {
+    logger.info('Received SIGTERM, cleaning up logs...');
+    await logger.cleanup();
+    process.exit(0);
   });
-});
 
-// Uncaught exception handler
-process.on('uncaughtException', (error) => {
-  logger.error('Uncaught Exception', error);
-  process.exit(1);
-});
+  process.on('SIGINT', async () => {
+    logger.info('Received SIGINT, cleaning up logs...');
+    await logger.cleanup();
+    process.exit(0);
+  });
+
+  // Unhandled rejection handler
+  process.on('unhandledRejection', (reason, promise) => {
+    logger.error('Unhandled Rejection', new Error(String(reason)), {
+      promise: promise.toString()
+    });
+  });
+
+  // Uncaught exception handler
+  process.on('uncaughtException', (error) => {
+    logger.error('Uncaught Exception', error);
+    process.exit(1);
+  });
+}
 
 export default logger;
 export { Logger };

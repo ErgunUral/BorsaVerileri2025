@@ -5,11 +5,11 @@ import {
   PortConfig,
   PortCheckResult,
   PortStatus,
-  PortCheckOptions,
   PortMonitorConfig,
+  PortCheckOptions,
   PortMonitorEvent,
   EventType
-} from '../types/portMonitor.js';
+} from '../types/portMonitor';
 
 export class PortMonitorService extends EventEmitter {
   private config: PortMonitorConfig;
@@ -81,7 +81,7 @@ export class PortMonitorService extends EventEmitter {
     }
 
     if (result.status !== PortStatus.ONLINE) {
-      result.error = lastError;
+      result.error = lastError || 'Unknown error';
     }
 
     // Event emit et

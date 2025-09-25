@@ -1,7 +1,24 @@
 import axios from 'axios';
-import { StockScraper, FinancialData, StockPrice } from "./stockScraper.js";
+import StockScraper from "./stockScraper";
+import { FinancialData, StockPrice } from '../types/stock';
+import InvestingScraper from './investingScraper';
 
-const stockScraper = new StockScraper();
+let stockScraper: StockScraper | null = null;
+let investingScraper: InvestingScraper | null = null;
+
+function getStockScraper(): StockScraper {
+  if (!stockScraper) {
+    stockScraper = new StockScraper();
+  }
+  return stockScraper;
+}
+
+function getInvestingScraper(): InvestingScraper {
+  if (!investingScraper) {
+    investingScraper = new InvestingScraper();
+  }
+  return investingScraper;
+}
 
 export interface ApiProvider {
   name: string;
@@ -15,11 +32,11 @@ class IsYatirimProvider implements ApiProvider {
   name = 'IsYatirim';
 
   async getStockPrice(stockCode: string): Promise<StockPrice | null> {
-    return await stockScraper.scrapeStockPrice(stockCode);
+    return await getStockScraper().scrapeStockPrice(stockCode);
   }
 
   async getFinancialData(stockCode: string): Promise<FinancialData | null> {
-     return await stockScraper.scrapeFinancialData(stockCode);
+     return await getStockScraper().scrapeFinancialData(stockCode);
   }
 
   async isAvailable(): Promise<boolean> {
@@ -80,6 +97,24 @@ class YahooFinanceProvider implements ApiProvider {
     } catch {
       return false;
     }
+  }
+}
+
+// Investing.com API Provider
+class InvestingProvider implements ApiProvider {
+  name = 'Investing';
+
+  async getStockPrice(stockCode: string): Promise<StockPrice | null> {
+    return await getInvestingScraper().scrapeStockPrice(stockCode);
+  }
+
+  async getFinancialData(_stockCode: string): Promise<FinancialData | null> {
+    // Investing.com doesn't provide detailed financial statements through scraping
+    return null;
+  }
+
+  async isAvailable(): Promise<boolean> {
+    return await getInvestingScraper().isAvailable();
   }
 }
 
@@ -156,6 +191,7 @@ class FallbackDataProvider {
   constructor() {
     this.providers = [
       new IsYatirimProvider(),
+      new InvestingProvider(),
       new YahooFinanceProvider(),
       new AlphaVantageProvider()
     ];

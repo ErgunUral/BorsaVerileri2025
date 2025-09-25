@@ -1,338 +1,367 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import '@testing-library/jest-dom';
-import { io } from 'socket.io-client';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import StockSearch from '../StockSearch';
 
-// Mock socket.io-client
-jest.mock('socket.io-client');
-const mockIo = io as jest.MockedFunction<typeof io>;
+// Mock fetch
+global.fetch = vi.fn();
 
-const mockOnStockSelect = jest.fn();
+// Mock localStorage
+const localStorageMock = {
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
+};
+Object.defineProperty(window, 'localStorage', {
+  value: localStorageMock
+});
 
-const mockStockData = {
-  stockCode: 'THYAO',
-  price: {
-    price: 150.50,
-    changePercent: 2.5,
-    volume: 1000000,
-    lastUpdated: '2024-01-01T12:00:00Z'
-  },
-  analysis: {
-    stockCode: 'THYAO',
-    companyName: 'Türk Hava Yolları',
-    totalAssets: 50000000,
-    totalLiabilities: 30000000,
-    equity: 20000000,
-    currentAssets: 15000000,
-    shortTermLiabilities: 10000000,
-    netProfit: 2000000,
-    revenue: 25000000,
-    operatingProfit: 3000000,
-    lastUpdated: new Date('2024-01-01T12:00:00Z')
-  }
+// Mock Socket.IO
+const mockSocket = {
+  on: vi.fn(),
+  emit: vi.fn(),
+  disconnect: vi.fn()
 };
 
-describe('StockSearch Component', () => {
-  let mockSocket: any;
+vi.mock('socket.io-client', () => ({
+  io: vi.fn(() => mockSocket)
+}));
 
+describe('StockSearch Component', () => {
+  const mockOnStockSelect = vi.fn();
+  
   beforeEach(() => {
-    mockSocket = {
-      on: jest.fn(),
-      off: jest.fn(),
-      emit: jest.fn(),
-      connect: jest.fn(),
-      disconnect: jest.fn(),
-      connected: true
-    };
-    
-    mockIo.mockReturnValue(mockSocket);
-    mockOnStockSelect.mockClear();
+    vi.clearAllMocks();
+    (fetch as any).mockClear();
+    localStorageMock.getItem.mockClear();
+    localStorageMock.setItem.mockClear();
+    mockSocket.on.mockClear();
+    mockSocket.emit.mockClear();
+    mockSocket.disconnect.mockClear();
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
-  it('renders stock search component', () => {
+  it('should render search input', () => {
     render(<StockSearch onStockSelect={mockOnStockSelect} />);
     
-    expect(screen.getByText('Hisse Senedi Arama')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Hisse kodu girin (örn: THYAO)')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Analiz Et' })).toBeInTheDocument();
+    const searchInput = screen.getByPlaceholderText(/hisse kodu giriniz/i);
+    expect(searchInput).toBeInTheDocument();
   });
 
-  it('handles search input changes', () => {
+  it('should handle search input changes', async () => {
+    const user = userEvent.setup();
     render(<StockSearch onStockSelect={mockOnStockSelect} />);
     
-    const searchInput = screen.getByPlaceholderText('Hisse kodu girin (örn: THYAO)');
-    
-    fireEvent.change(searchInput, { target: { value: 'THYAO' } });
+    const searchInput = screen.getByRole('textbox');
+    await user.type(searchInput, 'THYAO');
     
     expect(searchInput).toHaveValue('THYAO');
   });
 
-  it('converts input to uppercase', () => {
+  it('should perform search on form submit', async () => {
+    const user = userEvent.setup();
     render(<StockSearch onStockSelect={mockOnStockSelect} />);
     
-    const searchInput = screen.getByPlaceholderText('Hisse kodu girin (örn: THYAO)');
+    const searchInput = screen.getByRole('textbox');
+    await user.type(searchInput, 'THYAO');
     
-    fireEvent.change(searchInput, { target: { value: 'thyao' } });
+    const submitButton = screen.getByRole('button', { type: 'submit' });
+    await user.click(submitButton);
     
+    // Socket.IO emit should be called
     expect(searchInput).toHaveValue('THYAO');
   });
 
-  it('shows loading state during search', async () => {
-    render(<StockSearch onStockSelect={mockOnStockSelect} />);
-    
-    const searchInput = screen.getByPlaceholderText('Hisse kodu girin (örn: THYAO)');
-    const searchButton = screen.getByRole('button', { name: 'Analiz Et' });
-    
-    fireEvent.change(searchInput, { target: { value: 'THYAO' } });
-    fireEvent.click(searchButton);
-    
-    expect(screen.getByText('Analiz ediliyor...')).toBeInTheDocument();
-    expect(searchButton).toBeDisabled();
-  });
-
-  it('emits analyze-stock event on search', () => {
-    render(<StockSearch onStockSelect={mockOnStockSelect} />);
-    
-    const searchInput = screen.getByPlaceholderText('Hisse kodu girin (örn: THYAO)');
-    const searchButton = screen.getByRole('button', { name: 'Analiz Et' });
-    
-    fireEvent.change(searchInput, { target: { value: 'THYAO' } });
-    fireEvent.click(searchButton);
-    
-    expect(mockSocket.emit).toHaveBeenCalledWith('analyze-stock', 'THYAO');
-  });
-
-  it('handles Enter key press in search input', () => {
-    render(<StockSearch onStockSelect={mockOnStockSelect} />);
-    
-    const searchInput = screen.getByPlaceholderText('Hisse kodu girin (örn: THYAO)');
-    
-    fireEvent.change(searchInput, { target: { value: 'AKBNK' } });
-    fireEvent.keyPress(searchInput, { key: 'Enter', code: 'Enter', charCode: 13 });
-    
-    expect(mockSocket.emit).toHaveBeenCalledWith('analyze-stock', 'AKBNK');
-  });
-
-  it('prevents search with empty input', () => {
-    render(<StockSearch onStockSelect={mockOnStockSelect} />);
-    
-    const searchButton = screen.getByRole('button', { name: 'Analiz Et' });
-    
-    fireEvent.click(searchButton);
-    
-    expect(mockSocket.emit).not.toHaveBeenCalled();
-  });
-
-  it('shows suggestions when typing', async () => {
-    render(<StockSearch onStockSelect={mockOnStockSelect} />);
-    
-    const searchInput = screen.getByPlaceholderText('Hisse kodu girin (örn: THYAO)');
-    
-    fireEvent.change(searchInput, { target: { value: 'TH' } });
-    
-    await waitFor(() => {
-      expect(screen.getByText('THYAO')).toBeInTheDocument();
-      expect(screen.getByText('TSKB')).toBeInTheDocument();
-    });
-  });
-
-  it('selects suggestion on click', async () => {
-    render(<StockSearch onStockSelect={mockOnStockSelect} />);
-    
-    const searchInput = screen.getByPlaceholderText('Hisse kodu girin (örn: THYAO)');
-    
-    fireEvent.change(searchInput, { target: { value: 'TH' } });
-    
-    await waitFor(() => {
-      expect(screen.getByText('THYAO')).toBeInTheDocument();
-    });
-    
-    fireEvent.click(screen.getByText('THYAO'));
-    
-    expect(searchInput).toHaveValue('THYAO');
-  });
-
-  it('hides suggestions when clicking outside', async () => {
-    render(<StockSearch onStockSelect={mockOnStockSelect} />);
-    
-    const searchInput = screen.getByPlaceholderText('Hisse kodu girin (örn: THYAO)');
-    
-    fireEvent.change(searchInput, { target: { value: 'TH' } });
-    
-    await waitFor(() => {
-      expect(screen.getByText('THYAO')).toBeInTheDocument();
-    });
-    
-    fireEvent.click(document.body);
-    
-    await waitFor(() => {
-      expect(screen.queryByText('THYAO')).not.toBeInTheDocument();
-    });
-  });
-
-  it('handles successful analysis response', async () => {
-    render(<StockSearch onStockSelect={mockOnStockSelect} />);
-    
-    // Simulate analysis response
-    const analysisCallback = mockSocket.on.mock.calls.find(
-      (call: any) => call[0] === 'analysis-result'
-    )?.[1];
-    
-    if (analysisCallback) {
-      analysisCallback(mockStockData);
-    }
-    
-    await waitFor(() => {
-      expect(mockOnStockSelect).toHaveBeenCalledWith(mockStockData);
-    });
-  });
-
-  it('handles analysis error', async () => {
-    render(<StockSearch onStockSelect={mockOnStockSelect} />);
-    
-    // Simulate error response
-    const errorCallback = mockSocket.on.mock.calls.find(
-      (call: any) => call[0] === 'analysis-error'
-    )?.[1];
-    
-    if (errorCallback) {
-      errorCallback('Hisse bulunamadı');
-    }
-    
-    await waitFor(() => {
-      expect(screen.getByText('Hata: Hisse bulunamadı')).toBeInTheDocument();
-    });
-  });
-
-  it('shows connection status', () => {
-    render(<StockSearch onStockSelect={mockOnStockSelect} />);
-    
-    expect(screen.getByText('Bağlı')).toBeInTheDocument();
-  });
-
-  it('handles disconnection', async () => {
-    render(<StockSearch onStockSelect={mockOnStockSelect} />);
-    
-    // Simulate disconnect
-    const disconnectCallback = mockSocket.on.mock.calls.find(
-      (call: any) => call[0] === 'disconnect'
-    )?.[1];
-    
-    if (disconnectCallback) {
-      disconnectCallback();
-    }
-    
-    await waitFor(() => {
-      expect(screen.getByText('Bağlantı Kesildi')).toBeInTheDocument();
-    });
-  });
-
-  it('shows popular stocks section', () => {
+  it('should display popular stocks section', () => {
     render(<StockSearch onStockSelect={mockOnStockSelect} />);
     
     expect(screen.getByText('Popüler Hisseler')).toBeInTheDocument();
-    expect(screen.getByText('THYAO')).toBeInTheDocument();
-    expect(screen.getByText('AKBNK')).toBeInTheDocument();
-    expect(screen.getByText('GARAN')).toBeInTheDocument();
   });
 
-  it('searches popular stock on click', () => {
+  it('should show loading state', async () => {
     render(<StockSearch onStockSelect={mockOnStockSelect} />);
     
-    const popularStock = screen.getAllByText('THYAO')[0]; // First occurrence in popular stocks
-    fireEvent.click(popularStock);
+    const user = userEvent.setup();
+    const searchInput = screen.getByRole('textbox');
+    await user.type(searchInput, 'THYAO');
     
-    expect(mockSocket.emit).toHaveBeenCalledWith('analyze-stock', 'THYAO');
+    const submitButton = screen.getByRole('button', { type: 'submit' });
+    await user.click(submitButton);
+    
+    // Should show loading text
+    expect(screen.getByText('Hisse verisi çekiliyor...')).toBeInTheDocument();
   });
 
-  it('shows recent searches', async () => {
+  it('should handle invalid stock code format', async () => {
     render(<StockSearch onStockSelect={mockOnStockSelect} />);
     
-    // First search
-    const searchInput = screen.getByPlaceholderText('Hisse kodu girin (örn: THYAO)');
-    fireEvent.change(searchInput, { target: { value: 'THYAO' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Analiz Et' }));
+    const user = userEvent.setup();
+    const searchInput = screen.getByRole('textbox');
+    await user.type(searchInput, 'AB');
     
-    // Should show in recent searches
+    const submitButton = screen.getByRole('button', { type: 'submit' });
+    await user.click(submitButton);
+    
+    // Should show error for invalid format
     await waitFor(() => {
-      expect(screen.getByText('Son Aramalar')).toBeInTheDocument();
+      expect(screen.getByText(/Geçersiz hisse kodu formatı/)).toBeInTheDocument();
     });
   });
 
-  it('clears recent searches', async () => {
+  it('should disable submit button for empty input', () => {
     render(<StockSearch onStockSelect={mockOnStockSelect} />);
     
-    // Add a search first
-    const searchInput = screen.getByPlaceholderText('Hisse kodu girin (örn: THYAO)');
-    fireEvent.change(searchInput, { target: { value: 'THYAO' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Analiz Et' }));
+    const searchInput = screen.getByRole('textbox');
+    const submitButton = screen.getByRole('button', { type: 'submit' });
     
-    await waitFor(() => {
-      expect(screen.getByText('Son Aramalar')).toBeInTheDocument();
+    // Ensure input is empty and button is disabled
+    expect(searchInput).toHaveValue('');
+    expect(submitButton).toBeDisabled();
+  });
+
+  it('should fetch and display popular stocks', async () => {
+    const mockPopularStocks = { stocks: ['THYAO', 'AKBNK', 'GARAN'] };
+    (fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockPopularStocks
     });
-    
-    const clearButton = screen.getByRole('button', { name: 'Temizle' });
-    fireEvent.click(clearButton);
-    
-    expect(screen.queryByText('Son Aramalar')).not.toBeInTheDocument();
-  });
 
-  it('validates stock code format', () => {
     render(<StockSearch onStockSelect={mockOnStockSelect} />);
-    
-    const searchInput = screen.getByPlaceholderText('Hisse kodu girin (örn: THYAO)');
-    
-    // Invalid characters should be filtered
-    fireEvent.change(searchInput, { target: { value: 'TH123@#' } });
-    
-    expect(searchInput).toHaveValue('TH');
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith('/api/stocks/popular');
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('THYAO')).toBeInTheDocument();
+      expect(screen.getByText('AKBNK')).toBeInTheDocument();
+      expect(screen.getByText('GARAN')).toBeInTheDocument();
+    });
   });
 
-  it('limits input length', () => {
+  it('should handle popular stocks API error gracefully', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    (fetch as any).mockRejectedValueOnce(new Error('API Error'));
+
     render(<StockSearch onStockSelect={mockOnStockSelect} />);
-    
-    const searchInput = screen.getByPlaceholderText('Hisse kodu girin (örn: THYAO)');
-    
-    // Should limit to reasonable length (e.g., 10 characters)
-    fireEvent.change(searchInput, { target: { value: 'VERYLONGSTOCKCODE' } });
-    
-    expect(searchInput.value.length).toBeLessThanOrEqual(10);
+
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith('Popüler hisseler yüklenemedi:', expect.any(Error));
+    });
+
+    consoleSpy.mockRestore();
   });
 
-  it('shows search statistics', () => {
+  it('should load recent searches from localStorage', () => {
+    const recentSearches = ['THYAO', 'AKBNK'];
+    localStorageMock.getItem.mockReturnValue(JSON.stringify(recentSearches));
+
     render(<StockSearch onStockSelect={mockOnStockSelect} />);
-    
-    expect(screen.getByText(/toplam.*hisse/i)).toBeInTheDocument();
+
+    expect(localStorageMock.getItem).toHaveBeenCalledWith('recentStockSearches');
+    expect(screen.getByText('Son Aramalar')).toBeInTheDocument();
   });
 
-  it('handles rapid successive searches', async () => {
+  it('should show suggestions when typing', async () => {
+    const mockPopularStocks = { stocks: ['THYAO', 'TUPRS', 'TCELL'] };
+    (fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockPopularStocks
+    });
+
+    const user = userEvent.setup();
     render(<StockSearch onStockSelect={mockOnStockSelect} />);
-    
-    const searchInput = screen.getByPlaceholderText('Hisse kodu girin (örn: THYAO)');
-    const searchButton = screen.getByRole('button', { name: 'Analiz Et' });
-    
-    // First search
-    fireEvent.change(searchInput, { target: { value: 'THYAO' } });
-    fireEvent.click(searchButton);
-    
-    // Second search immediately
-    fireEvent.change(searchInput, { target: { value: 'AKBNK' } });
-    fireEvent.click(searchButton);
-    
-    // Should handle gracefully without errors
-    expect(mockSocket.emit).toHaveBeenCalledTimes(2);
+
+    // Wait for popular stocks to load
+    await waitFor(() => {
+      expect(screen.getByText('THYAO')).toBeInTheDocument();
+    });
+
+    const searchInput = screen.getByRole('textbox');
+    await user.type(searchInput, 'TH');
+
+    await waitFor(() => {
+      expect(screen.getByText('THYAO')).toBeInTheDocument();
+    });
   });
 
-  it('cleans up socket listeners on unmount', () => {
+  it('should hide suggestions when clicking outside', async () => {
+    const mockPopularStocks = { stocks: ['THYAO', 'TUPRS'] };
+    (fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockPopularStocks
+    });
+
+    const user = userEvent.setup();
+    render(<StockSearch onStockSelect={mockOnStockSelect} />);
+
+    // Wait for popular stocks to load
+    await waitFor(() => {
+      expect(screen.getByText('THYAO')).toBeInTheDocument();
+    });
+
+    const searchInput = screen.getByRole('textbox');
+    await user.type(searchInput, 'TH');
+
+    // Click outside
+    fireEvent.mouseDown(document.body);
+
+    await waitFor(() => {
+      const suggestions = screen.queryByRole('button', { name: /THYAO/ });
+      expect(suggestions).not.toBeInTheDocument();
+    });
+  });
+
+  it('should handle suggestion click', async () => {
+    const mockPopularStocks = { stocks: ['THYAO', 'TUPRS'] };
+    (fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockPopularStocks
+    });
+
+    const user = userEvent.setup();
+    render(<StockSearch onStockSelect={mockOnStockSelect} />);
+
+    // Wait for popular stocks to load
+    await waitFor(() => {
+      expect(screen.getByText('THYAO')).toBeInTheDocument();
+    });
+
+    const searchInput = screen.getByRole('textbox');
+    await user.type(searchInput, 'TH');
+
+    // Click on suggestion
+    const suggestion = screen.getByRole('button', { name: /THYAO/ });
+    await user.click(suggestion);
+
+    expect(searchInput).toHaveValue('THYAO');
+    expect(mockSocket.emit).toHaveBeenCalledWith('subscribe-stock', 'THYAO');
+  });
+
+  it('should handle quick search from popular stocks', async () => {
+    const mockPopularStocks = { stocks: ['THYAO', 'AKBNK'] };
+    (fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockPopularStocks
+    });
+
+    const user = userEvent.setup();
+    render(<StockSearch onStockSelect={mockOnStockSelect} />);
+
+    // Wait for popular stocks to load
+    await waitFor(() => {
+      expect(screen.getByText('THYAO')).toBeInTheDocument();
+    });
+
+    const popularStockButton = screen.getByRole('button', { name: 'THYAO' });
+    await user.click(popularStockButton);
+
+    const searchInput = screen.getByRole('textbox');
+    expect(searchInput).toHaveValue('THYAO');
+    expect(mockSocket.emit).toHaveBeenCalledWith('subscribe-stock', 'THYAO');
+  });
+
+  it('should handle socket stock-data event', async () => {
+    const mockStockData = {
+      stockCode: 'THYAO',
+      price: { price: 100, changePercent: 5.2, volume: 1000000, lastUpdated: '2024-01-01' },
+      timestamp: '2024-01-01T10:00:00Z'
+    };
+
+    render(<StockSearch onStockSelect={mockOnStockSelect} />);
+
+    // Simulate socket event
+    const stockDataCallback = mockSocket.on.mock.calls.find(call => call[0] === 'stock-data')[1];
+    stockDataCallback(mockStockData);
+
+    expect(mockOnStockSelect).toHaveBeenCalledWith(mockStockData);
+    expect(localStorageMock.setItem).toHaveBeenCalledWith(
+      'recentStockSearches',
+      JSON.stringify(['THYAO'])
+    );
+  });
+
+  it('should handle socket stock-error event', async () => {
+    const mockError = { stockCode: 'INVALID', error: 'Stock not found' };
+
+    render(<StockSearch onStockSelect={mockOnStockSelect} />);
+
+    // Simulate socket error event
+    const errorCallback = mockSocket.on.mock.calls.find(call => call[0] === 'stock-error')[1];
+    errorCallback(mockError);
+
+    await waitFor(() => {
+      expect(screen.getByText('INVALID: Stock not found')).toBeInTheDocument();
+    });
+  });
+
+  it('should validate stock code format', async () => {
+    const user = userEvent.setup();
+    render(<StockSearch onStockSelect={mockOnStockSelect} />);
+
+    const searchInput = screen.getByRole('textbox');
+    const submitButton = screen.getByRole('button', { type: 'submit' });
+
+    // Test too short code
+    await user.type(searchInput, 'AB');
+    await user.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Geçersiz hisse kodu formatı/)).toBeInTheDocument();
+    });
+
+    // Clear and test too long code
+    await user.clear(searchInput);
+    await user.type(searchInput, 'TOOLONG');
+    await user.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Geçersiz hisse kodu formatı/)).toBeInTheDocument();
+    });
+  });
+
+  it('should show error for empty search', async () => {
+    const user = userEvent.setup();
+    render(<StockSearch onStockSelect={mockOnStockSelect} />);
+
+    const searchInput = screen.getByRole('textbox');
+    const submitButton = screen.getByRole('button', { type: 'submit' });
+
+    await user.type(searchInput, '   '); // Only spaces
+    await user.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('Lütfen bir hisse kodu giriniz')).toBeInTheDocument();
+    });
+  });
+
+  it('should convert input to uppercase', async () => {
+    const user = userEvent.setup();
+    render(<StockSearch onStockSelect={mockOnStockSelect} />);
+
+    const searchInput = screen.getByRole('textbox');
+    await user.type(searchInput, 'thyao');
+
+    expect(searchInput).toHaveValue('THYAO');
+  });
+
+  it('should limit input to 6 characters', async () => {
+    const user = userEvent.setup();
+    render(<StockSearch onStockSelect={mockOnStockSelect} />);
+
+    const searchInput = screen.getByRole('textbox');
+    expect(searchInput).toHaveAttribute('maxLength', '6');
+  });
+
+  it('should disconnect socket on unmount', () => {
     const { unmount } = render(<StockSearch onStockSelect={mockOnStockSelect} />);
     
     unmount();
     
-    expect(mockSocket.off).toHaveBeenCalled();
+    expect(mockSocket.disconnect).toHaveBeenCalled();
   });
 });

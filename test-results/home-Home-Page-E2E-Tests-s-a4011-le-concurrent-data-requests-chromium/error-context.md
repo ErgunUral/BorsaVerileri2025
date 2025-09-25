@@ -1,0 +1,155 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - img [ref=e8]
+        - generic [ref=e11]:
+          - heading "Borsa Analiz Sistemi" [level=1] [ref=e12]
+          - paragraph [ref=e13]: Türk hisse senetleri için gerçek zamanlı analiz
+      - generic [ref=e14]:
+        - navigation [ref=e15]:
+          - button "Hisse Analizi" [ref=e16] [cursor=pointer]:
+            - img [ref=e17] [cursor=pointer]
+            - generic [ref=e19] [cursor=pointer]: Hisse Analizi
+          - button "Rasyo Analizi" [ref=e20] [cursor=pointer]:
+            - img [ref=e21] [cursor=pointer]
+            - generic [ref=e23] [cursor=pointer]: Rasyo Analizi
+          - button "Gerçek Zamanlı" [ref=e24] [cursor=pointer]:
+            - img [ref=e25] [cursor=pointer]
+            - generic [ref=e27] [cursor=pointer]: Gerçek Zamanlı
+          - button "Veri Yönetimi" [ref=e28] [cursor=pointer]:
+            - img [ref=e29] [cursor=pointer]
+            - generic [ref=e33] [cursor=pointer]: Veri Yönetimi
+          - button "Figma" [ref=e34] [cursor=pointer]:
+            - img [ref=e35] [cursor=pointer]
+            - generic [ref=e41] [cursor=pointer]: Figma
+          - button "Canlı Takip" [ref=e42] [cursor=pointer]:
+            - img [ref=e43] [cursor=pointer]
+            - generic [ref=e45] [cursor=pointer]: Canlı Takip
+          - button "Sistem İzleme" [ref=e46] [cursor=pointer]:
+            - img [ref=e47] [cursor=pointer]
+            - generic [ref=e49] [cursor=pointer]: Sistem İzleme
+          - button "WebSocket Test" [ref=e50] [cursor=pointer]:
+            - img [ref=e51] [cursor=pointer]
+            - generic [ref=e53] [cursor=pointer]: WebSocket Test
+        - generic [ref=e56]: Bağlantı Kesildi
+  - main [ref=e57]:
+    - generic [ref=e59]:
+      - generic [ref=e61]:
+        - generic:
+          - img
+        - 'textbox "Hisse kodu giriniz (örn: THYAO, AKBNK)" [ref=e62]'
+        - button [disabled] [ref=e64]:
+          - img [ref=e65]
+      - heading "Popüler Hisseler" [level=3] [ref=e69]
+    - generic [ref=e71]:
+      - generic [ref=e72]:
+        - heading "Hesap Makinesi Uygulaması" [level=1] [ref=e73]
+        - paragraph [ref=e74]: Temel ve finansal hesaplamalar yapabileceğiniz kapsamlı hesap makinesi
+      - generic [ref=e75]:
+        - generic [ref=e76] [cursor=pointer]:
+          - generic [ref=e77] [cursor=pointer]:
+            - img [ref=e78] [cursor=pointer]
+            - generic [ref=e82] [cursor=pointer]: YENİ
+          - heading "Veri Yönetimi" [level=3] [ref=e83] [cursor=pointer]
+          - paragraph [ref=e84] [cursor=pointer]: Tüm verileri kontrol edin, mükerrer verileri analiz edin
+          - generic [ref=e85] [cursor=pointer]:
+            - generic [ref=e86] [cursor=pointer]: Detaylı Analiz
+            - img [ref=e87] [cursor=pointer]
+        - generic [ref=e89] [cursor=pointer]:
+          - generic [ref=e90] [cursor=pointer]:
+            - img [ref=e91] [cursor=pointer]
+            - generic [ref=e94] [cursor=pointer]: AKTİF
+          - heading "Hisse Analizi" [level=3] [ref=e95] [cursor=pointer]
+          - paragraph [ref=e96] [cursor=pointer]: Gerçek zamanlı hisse senedi analizi ve öneriler
+          - generic [ref=e97] [cursor=pointer]:
+            - generic [ref=e98] [cursor=pointer]: Analiz Et
+            - img [ref=e99] [cursor=pointer]
+        - generic [ref=e101] [cursor=pointer]:
+          - generic [ref=e102] [cursor=pointer]:
+            - generic [ref=e103] [cursor=pointer]: 🧮
+            - generic [ref=e104] [cursor=pointer]: ARAÇ
+          - heading "Hesap Makinesi" [level=3] [ref=e105] [cursor=pointer]
+          - paragraph [ref=e106] [cursor=pointer]: Temel ve finansal hesaplamalar
+          - generic [ref=e107] [cursor=pointer]:
+            - generic [ref=e108] [cursor=pointer]: Hesapla
+            - generic [ref=e109] [cursor=pointer]: →
+        - generic [ref=e110] [cursor=pointer]:
+          - generic [ref=e111] [cursor=pointer]:
+            - generic [ref=e112] [cursor=pointer]: ⚡
+            - generic [ref=e113] [cursor=pointer]: ONLINE
+          - heading "Sistem Durumu" [level=3] [ref=e114] [cursor=pointer]
+          - paragraph [ref=e115] [cursor=pointer]: Sunucu ve veri bağlantı durumu
+          - generic [ref=e116] [cursor=pointer]:
+            - generic [ref=e117] [cursor=pointer]: Kontrol Et
+            - generic [ref=e118] [cursor=pointer]: →
+      - generic [ref=e119]:
+        - generic [ref=e120]:
+          - generic [ref=e121]:
+            - generic [ref=e122]:
+              - img [ref=e123]
+              - heading "Akıllı Hesap Makinesi" [level=2] [ref=e125]
+            - generic [ref=e126]:
+              - button "Otomatik Açık" [ref=e127] [cursor=pointer]
+              - button "Geçmişi göster/gizle" [ref=e128] [cursor=pointer]:
+                - img [ref=e129] [cursor=pointer]
+          - generic [ref=e133]:
+            - generic [ref=e134]:
+              - generic [ref=e135]: "Matematiksel İfade (örn: 5 + 3 * 2)"
+              - textbox "Hesaplama yazın... (Enter ile hesapla, Esc ile temizle)" [active] [ref=e137]
+            - generic [ref=e138]:
+              - heading "Hızlı Giriş" [level=3] [ref=e139]
+              - generic [ref=e140]:
+                - button "7" [ref=e141] [cursor=pointer]
+                - button "8" [ref=e142] [cursor=pointer]
+                - button "9" [ref=e143] [cursor=pointer]
+                - button "4" [ref=e144] [cursor=pointer]
+                - button "5" [ref=e145] [cursor=pointer]
+                - button "6" [ref=e146] [cursor=pointer]
+                - button "1" [ref=e147] [cursor=pointer]
+                - button "2" [ref=e148] [cursor=pointer]
+                - button "3" [ref=e149] [cursor=pointer]
+                - button "0" [ref=e150] [cursor=pointer]
+                - button "." [ref=e151] [cursor=pointer]
+                - button "=" [ref=e152] [cursor=pointer]
+                - button "+" [ref=e153] [cursor=pointer]
+                - button "-" [ref=e154] [cursor=pointer]
+                - button "*" [ref=e155] [cursor=pointer]
+                - button / [ref=e156] [cursor=pointer]
+                - button "C" [ref=e157] [cursor=pointer]
+                - button "(" [ref=e158] [cursor=pointer]
+                - button ")" [ref=e159] [cursor=pointer]
+                - button "=" [ref=e160] [cursor=pointer]
+          - paragraph [ref=e162]:
+            - strong [ref=e163]: "Klavye Kısayolları:"
+            - text: Enter = Hesapla, Esc = Temizle, Sayı tuşları = Otomatik odaklanma
+        - generic [ref=e164]:
+          - generic [ref=e165]:
+            - heading "Finansal Hesap Makinesi" [level=3] [ref=e166]:
+              - img [ref=e167]
+              - generic [ref=e169]: Finansal Hesap Makinesi
+            - generic [ref=e170]:
+              - generic [ref=e171]:
+                - button "Otomatik Oranlar" [ref=e172] [cursor=pointer]
+                - button "Özel Hesaplama" [ref=e173] [cursor=pointer]
+              - button [ref=e174] [cursor=pointer]:
+                - img [ref=e175] [cursor=pointer]
+          - generic [ref=e178]:
+            - generic [ref=e181]:
+              - text: 1 oran hesaplandı
+              - generic [ref=e182]: • 20:57:07
+            - generic [ref=e184]:
+              - generic [ref=e185]:
+                - heading "Borç Oranı" [level=4] [ref=e186]
+                - generic [ref=e187]: Kaldıraç
+              - generic [ref=e188]: 0,60
+              - generic [ref=e189]: Toplam Yükümlülükler / Toplam Varlıklar
+              - generic [ref=e190]: Yüksek borç seviyesi
+  - contentinfo [ref=e191]:
+    - generic [ref=e193]:
+      - paragraph [ref=e194]: © 2025 Borsa Analiz Sistemi. Tüm hakları saklıdır.
+      - paragraph [ref=e195]: Veriler İş Yatırım'dan alınmaktadır. Yatırım kararlarınızı verirken profesyonel danışmanlık alınız.
+```

@@ -7,9 +7,8 @@ import {
   AlertStatus,
   PortCheckResult,
   PortStatus,
-  PortMonitorEvent,
   EventType
-} from '../types/portMonitor.js';
+} from '../types/portMonitor';
 
 export interface EmailConfig {
   host: string;

@@ -1,5 +1,6 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import axios from 'axios';
+import { TradingSignal, MarketData, PositionSizing, SignalsSummary, PortfolioRecommendation, MarketSentiment, RiskAnalysis, SignalPerformance } from '../types/trading';
 
 // Trading signal interfaces
 interface TradingSignal {
@@ -192,6 +193,42 @@ const useTradingSignals = () => {
   });
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  
+  // Rate limiting için refs
+  const lastRequestTime = useRef<number>(0);
+  const requestQueue = useRef<Array<() => void>>([]);
+  const isProcessingQueue = useRef<boolean>(false);
+  const MIN_REQUEST_INTERVAL = 2000; // 2 saniye minimum aralık
+
+  // Rate limiting queue processor
+  const processQueue = useCallback(async () => {
+    if (isProcessingQueue.current || requestQueue.current.length === 0) {
+      return;
+    }
+
+    isProcessingQueue.current = true;
+    
+    while (requestQueue.current.length > 0) {
+      const now = Date.now();
+      const timeSinceLastRequest = now - lastRequestTime.current;
+      
+      if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+        const waitTime = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
+        console.debug(`Rate limiting: Waiting ${waitTime}ms before next request`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+      
+      const nextRequest = requestQueue.current.shift();
+      if (nextRequest) {
+        lastRequestTime.current = Date.now();
+        nextRequest();
+        // İstekler arası ek bekleme
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+    
+    isProcessingQueue.current = false;
+  }, []);
 
   // Generic API call handler
   const handleApiCall = useCallback(async <T>(
@@ -200,56 +237,85 @@ const useTradingSignals = () => {
     loadingKey: keyof UseTradingSignalsState,
     method: 'GET' | 'POST' = 'POST'
   ): Promise<T | null> => {
-    try {
-      // Cancel previous request
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
+    return new Promise((resolve) => {
+      const executeRequest = async () => {
+        try {
+          // Cancel previous request
+          if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+          }
 
-      abortControllerRef.current = new AbortController();
+          abortControllerRef.current = new AbortController();
 
-      setState(prev => ({
-        ...prev,
-        [loadingKey]: true,
-        error: null
-      }));
+          setState(prev => ({
+            ...prev,
+            [loadingKey]: true,
+            error: null
+          }));
 
-      const config = {
-        signal: abortControllerRef.current.signal,
-        timeout: 30000 // 30 seconds timeout
+          const config = {
+            signal: abortControllerRef.current.signal,
+            timeout: 30000 // 30 seconds timeout
+          };
+
+          const response = method === 'GET' 
+            ? await axios.get(url, config)
+            : await axios.post(url, data, config);
+
+          if (response.data.success) {
+            setState(prev => ({
+              ...prev,
+              [loadingKey]: false
+            }));
+            resolve(response.data.data);
+          } else {
+            throw new Error(response.data.error || 'API call failed');
+          }
+        } catch (error) {
+          if (axios.isCancel(error)) {
+            setState(prev => ({
+              ...prev,
+              [loadingKey]: false
+            }));
+            resolve(null); // Request was cancelled
+            return;
+          }
+          
+          // 429 hatası özel işlemi
+          if (axios.isAxiosError(error) && error.response?.status === 429) {
+            console.warn('Rate limit exceeded, will retry after delay');
+            setState(prev => ({
+              ...prev,
+              [loadingKey]: false,
+              error: 'Çok fazla istek gönderildi. Lütfen bekleyin...'
+            }));
+            
+            // 5 saniye bekleyip tekrar dene
+            setTimeout(() => {
+              requestQueue.current.push(executeRequest);
+              processQueue();
+            }, 5000);
+            return;
+          }
+          
+          const errorMessage = axios.isAxiosError(error)
+            ? error.response?.data?.message || error.message
+            : 'Bilinmeyen hata oluştu';
+          
+          setState(prev => ({
+            ...prev,
+            [loadingKey]: false,
+            error: errorMessage
+          }));
+          
+          resolve(null);
+        }
       };
-
-      const response = method === 'GET' 
-        ? await axios.get(url, config)
-        : await axios.post(url, data, config);
-
-      if (response.data.success) {
-        return response.data.data;
-      } else {
-        throw new Error(response.data.error || 'API call failed');
-      }
-    } catch (error) {
-      if (axios.isCancel(error)) {
-        return null; // Request was cancelled
-      }
       
-      const errorMessage = axios.isAxiosError(error)
-        ? error.response?.data?.message || error.message
-        : 'Bilinmeyen hata oluştu';
-      
-      setState(prev => ({
-        ...prev,
-        error: errorMessage
-      }));
-      
-      throw error;
-    } finally {
-      setState(prev => ({
-        ...prev,
-        [loadingKey]: false
-      }));
-    }
-  }, []);
+      requestQueue.current.push(executeRequest);
+      processQueue();
+    });
+  }, [processQueue]);
 
   // Generate single trading signal
   const generateSignal = useCallback(async (
@@ -268,9 +334,20 @@ const useTradingSignals = () => {
       );
 
       if (result) {
+        // Veri doğrulama ve güvenlik kontrolleri
+        const validatedSignal = result.signal ? {
+          ...result.signal,
+          price: typeof result.signal.price === 'number' ? result.signal.price : 0,
+          targetPrice: typeof result.signal.targetPrice === 'number' ? result.signal.targetPrice : undefined,
+          stopLoss: typeof result.signal.stopLoss === 'number' ? result.signal.stopLoss : undefined,
+          confidence: typeof result.signal.confidence === 'number' ? result.signal.confidence : 0
+        } : null;
+        
+        console.debug('useTradingSignals: Validated single signal:', validatedSignal);
+        
         setState(prev => ({
           ...prev,
-          signal: result.signal,
+          signal: validatedSignal,
           positionSizing: result.positionSizing
         }));
       }
@@ -305,10 +382,51 @@ const useTradingSignals = () => {
       );
 
       if (result) {
+        // Veri doğrulama ve güvenlik kontrolleri
+        const validatedSignals = (result.signals || []).map(s => {
+          if (!s || !s.signal) {
+            console.warn('useTradingSignals: Invalid signal data received:', s);
+            return null;
+          }
+          
+          return {
+            ...s.signal,
+            price: typeof s.signal.price === 'number' ? s.signal.price : 0,
+            targetPrice: typeof s.signal.targetPrice === 'number' ? s.signal.targetPrice : undefined,
+            stopLoss: typeof s.signal.stopLoss === 'number' ? s.signal.stopLoss : undefined,
+            confidence: typeof s.signal.confidence === 'number' ? s.signal.confidence : 0,
+            symbol: s.signal.symbol || 'UNKNOWN',
+            action: s.signal.action || 'HOLD',
+            strength: s.signal.strength || 'WEAK',
+            timeframe: s.signal.timeframe || '1D',
+            reasoning: s.signal.reasoning || 'Analiz bilgisi mevcut değil',
+            technicalFactors: Array.isArray(s.signal.technicalFactors) ? s.signal.technicalFactors : [],
+            fundamentalFactors: Array.isArray(s.signal.fundamentalFactors) ? s.signal.fundamentalFactors : [],
+            riskLevel: s.signal.riskLevel || 'MEDIUM',
+            timestamp: s.signal.timestamp || new Date().toISOString()
+          };
+        }).filter(Boolean) as TradingSignal[];
+        
+        // Summary doğrulama
+        const validatedSummary = result.summary ? {
+          totalSignals: typeof result.summary.totalSignals === 'number' ? result.summary.totalSignals : validatedSignals.length,
+          buySignals: typeof result.summary.buySignals === 'number' ? result.summary.buySignals : validatedSignals.filter(s => s.action === 'BUY').length,
+          sellSignals: typeof result.summary.sellSignals === 'number' ? result.summary.sellSignals : validatedSignals.filter(s => s.action === 'SELL').length,
+          holdSignals: typeof result.summary.holdSignals === 'number' ? result.summary.holdSignals : validatedSignals.filter(s => s.action === 'HOLD').length,
+          averageConfidence: typeof result.summary.averageConfidence === 'number' ? result.summary.averageConfidence : 
+            (validatedSignals.length > 0 ? validatedSignals.reduce((sum, s) => sum + s.confidence, 0) / validatedSignals.length : 0)
+        } : null;
+        
+        console.debug('useTradingSignals: Validated signals:', {
+          originalCount: result.signals?.length || 0,
+          validatedCount: validatedSignals.length,
+          summary: validatedSummary
+        });
+        
         setState(prev => ({
           ...prev,
-          signals: result.signals.map(s => s.signal),
-          signalsSummary: result.summary
+          signals: validatedSignals,
+          signalsSummary: validatedSummary
         }));
       }
 

@@ -74,7 +74,7 @@ export const usePatternRecognition = () => {
     setError(null);
 
     try {
-      const response = await fetch(`/api/pattern-recognition/${symbol}?timeframe=${timeframe}`);
+      const response = await fetch(`/api/pattern-recognition/${symbol}/analyze?timeframe=${timeframe}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -93,7 +93,15 @@ export const usePatternRecognition = () => {
       console.error('Pattern recognition error:', err);
       
       // Mock data for development
-      if (process.env['NODE_ENV'] === 'development') {
+      const isDevelopment = (() => {
+        try {
+          return import.meta.env?.DEV || false;
+        } catch {
+          return false;
+        }
+      })();
+      
+      if (isDevelopment) {
         const mockPattern: PatternData = {
           id: '1',
           name: 'Yükselen Üçgen',

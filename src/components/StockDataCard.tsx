@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
-import { TrendingUp, TrendingDown, DollarSign, Calendar, Clock, RefreshCw } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Calendar, RefreshCw } from 'lucide-react';
 
 interface StockData {
   symbol: string;
@@ -35,7 +35,10 @@ const StockDataCard: React.FC<StockDataCardProps> = memo(({
   onRefresh,
   symbol
 }) => {
-  const formatNumber = (num: number, decimals: number = 2) => {
+  const formatNumber = (num: number | undefined, decimals: number = 2) => {
+    if (num === undefined || num === null || isNaN(num)) {
+      return '0';
+    }
     if (num >= 1e9) {
       return (num / 1e9).toFixed(decimals) + 'B';
     }
@@ -48,7 +51,10 @@ const StockDataCard: React.FC<StockDataCardProps> = memo(({
     return num.toLocaleString('tr-TR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   };
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number | undefined) => {
+    if (amount === undefined || amount === null || isNaN(amount)) {
+      return '₺0,00';
+    }
     return new Intl.NumberFormat('tr-TR', {
       style: 'currency',
       currency: 'TRY',
@@ -147,7 +153,7 @@ const StockDataCard: React.FC<StockDataCardProps> = memo(({
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg font-bold text-gray-900 flex items-center space-x-2">
             <DollarSign className="h-5 w-5 text-blue-600" />
-            <span>Hisse Verisi - {stockData.symbol}</span>
+            <span>Hisse Verisi - {stockData.stockCode}</span>
           </CardTitle>
           <div className="flex items-center space-x-2">
             <Badge className={performanceBadge.color}>
@@ -179,7 +185,7 @@ const StockDataCard: React.FC<StockDataCardProps> = memo(({
                   {stockData.change > 0 ? '+' : ''}{formatCurrency(stockData.change)}
                 </span>
                 <span className="font-semibold">
-                  ({stockData.changePercent > 0 ? '+' : ''}{stockData.changePercent.toFixed(2)}%)
+                  ({stockData.changePercent > 0 ? '+' : ''}{(stockData.changePercent ?? 0).toFixed(2)}%)
                 </span>
               </div>
             </div>
@@ -217,7 +223,7 @@ const StockDataCard: React.FC<StockDataCardProps> = memo(({
                 <span className={`font-medium ${
                   stockData.volume > stockData.avgVolume ? 'text-green-600' : 'text-red-600'
                 }`}>
-                  {((stockData.volume / stockData.avgVolume) * 100).toFixed(0)}%
+                  {stockData.volume && stockData.avgVolume && stockData.avgVolume !== 0 ? ((stockData.volume / stockData.avgVolume) * 100).toFixed(0) : '0'}%
                 </span>
               </div>
             </div>
@@ -241,7 +247,7 @@ const StockDataCard: React.FC<StockDataCardProps> = memo(({
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">Pozisyon:</span>
                 <span className="font-medium">
-                  {(((stockData.price - stockData.low52Week) / (stockData.high52Week - stockData.low52Week)) * 100).toFixed(0)}%
+                  {stockData.price && stockData.low52Week !== undefined && stockData.high52Week !== undefined && (stockData.high52Week - stockData.low52Week) !== 0 ? (((stockData.price - stockData.low52Week) / (stockData.high52Week - stockData.low52Week)) * 100).toFixed(0) : '0'}%
                 </span>
               </div>
             </div>
@@ -256,7 +262,7 @@ const StockDataCard: React.FC<StockDataCardProps> = memo(({
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">P/E:</span>
-                <span className="font-medium">{stockData.peRatio.toFixed(2)}</span>
+                <span className="font-medium">{stockData.peRatio !== undefined && stockData.peRatio !== null ? stockData.peRatio.toFixed(2) : 'N/A'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">EPS:</span>
@@ -264,14 +270,14 @@ const StockDataCard: React.FC<StockDataCardProps> = memo(({
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">Temettü:</span>
-                <span className="font-medium">{stockData.dividendYield.toFixed(2)}%</span>
+                <span className="font-medium">{stockData.dividendYield !== undefined && stockData.dividendYield !== null ? stockData.dividendYield.toFixed(2) : '0.00'}%</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">Beta:</span>
                 <span className={`font-medium ${
                   stockData.beta > 1 ? 'text-red-600' : stockData.beta < 1 ? 'text-green-600' : 'text-gray-600'
                 }`}>
-                  {stockData.beta.toFixed(2)}
+                  {stockData.beta !== undefined && stockData.beta !== null ? stockData.beta.toFixed(2) : 'N/A'}
                 </span>
               </div>
             </div>

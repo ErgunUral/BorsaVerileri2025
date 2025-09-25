@@ -1,87 +1,104 @@
-const axios = require('axios');
-const cheerio = require('cheerio');
+// Simple test for XPath scraper
+const puppeteer = require('puppeteer');
 
-async function testPage() {
-  console.log('Testing page access...');
+async function testXPathScraper() {
+  console.log('🚀 Testing XPath-based İş Yatırım Scraper...');
   
+  let browser;
   try {
+    // Launch browser
+    browser = await puppeteer.launch({
+      headless: false, // Show browser for debugging
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage'
+      ],
+      timeout: 60000,
+      slowMo: 100
+    });
+    
+    const page = await browser.newPage();
+    
+    // Set user agent and viewport
+    await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    await page.setViewport({ width: 1920, height: 1080 });
+    
+    // First navigate to a simple page
+    console.log('📊 Testing basic navigation...');
+    await page.goto('https://www.google.com', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    console.log('✅ Google loaded successfully');
+    
+    // Now navigate to ASELS page
+    console.log('📊 Navigating to ASELS page...');
     const url = 'https://www.isyatirim.com.tr/tr-tr/analiz/hisse/Sayfalar/sirket-karti.aspx?hisse=ASELS';
-    console.log('Fetching:', url);
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
     
-    const response = await axios.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      },
-      timeout: 10000
-    });
+    // Wait for page to load
+    console.log('⏳ Waiting for page to load...');
+    await page.waitForTimeout(5000);
     
-    console.log('Response status:', response.status);
-    console.log('Response size:', response.data.length);
+    // Try to find the price element using XPath
+    console.log('🔍 Looking for price element using XPath //*[@id="hisse_Son"]...');
     
-    const $ = cheerio.load(response.data);
-    
-    // Look for tables
-    const tables = $('table');
-    console.log('Tables found:', tables.length);
-    
-    // Look for specific financial terms
-    const terms = ['Aktif Toplamı', 'Net Kar', 'Özkaynaklar'];
-    
-    terms.forEach(term => {
-      const found = response.data.includes(term);
-      console.log(`${term}: ${found ? 'FOUND' : 'NOT FOUND'}`);
-    });
-    
-    // Examine all tables for financial data
-    console.log('\n=== TABLE ANALYSIS ===');
-    
-    tables.each((i, table) => {
-      const $table = $(table);
-      const tableText = $table.text().trim();
-      
-      // Check if table contains financial terms
-      const hasFinancialData = terms.some(term => tableText.includes(term));
-      
-      if (hasFinancialData) {
-        console.log(`\n--- Table ${i + 1} (Contains Financial Data) ---`);
-        console.log(tableText.substring(0, 800));
-        
-        // Look for rows with financial data
-        const rows = $table.find('tr');
-        console.log(`Rows in table: ${rows.length}`);
-        
-        rows.each((rowIndex, row) => {
-          const $row = $(row);
-          const rowText = $row.text().trim();
-          
-          if (terms.some(term => rowText.includes(term))) {
-            console.log(`  Row ${rowIndex + 1}: ${rowText}`);
-          }
-        });
-      }
-    });
-    
-    // Also check for specific financial data patterns
-    console.log('\n=== FINANCIAL DATA SEARCH ===');
-    
-    const financialPatterns = [
-      { name: 'Aktif Toplamı', pattern: /Aktif Toplamı[\s\S]*?(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)/i },
-      { name: 'Net Kar', pattern: /Net Kar[\s\S]*?(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)/i },
-      { name: 'Özkaynaklar', pattern: /Özkaynaklar[\s\S]*?(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)/i }
-    ];
-    
-    financialPatterns.forEach(({ name, pattern }) => {
-      const match = response.data.match(pattern);
-      if (match) {
-        console.log(`${name}: ${match[1]}`);
+    try {
+      const priceElement = await page.$x('//*[@id="hisse_Son"]');
+      if (priceElement.length > 0) {
+        const priceText = await page.evaluate(el => el.textContent, priceElement[0]);
+        console.log('✅ Found price element:', priceText);
       } else {
-        console.log(`${name}: Pattern not found`);
+        console.log('❌ Price element not found with XPath //*[@id="hisse_Son"]');
+        
+        // Try alternative selectors
+        console.log('🔍 Trying alternative selectors...');
+        
+        const alternatives = [
+          '#hisse_Son',
+          '.hisse-fiyat',
+          '.price-value',
+          '[data-field="price"]',
+          '.son-fiyat',
+          '.current-price'
+        ];
+        
+        for (const selector of alternatives) {
+          try {
+            const element = await page.$(selector);
+            if (element) {
+              const text = await page.evaluate(el => el.textContent, element);
+              console.log(`✅ Found with selector ${selector}:`, text);
+              break;
+            }
+          } catch (e) {
+            console.log(`❌ Selector ${selector} failed`);
+          }
+        }
       }
-    });
+    } catch (error) {
+      console.error('❌ Error finding price element:', error.message);
+    }
+    
+    // Get page title and URL for verification
+    const title = await page.title();
+    const currentUrl = page.url();
+    console.log('📄 Page title:', title);
+    console.log('🔗 Current URL:', currentUrl);
+    
+    // Take a screenshot for debugging
+    await page.screenshot({ path: 'debug-screenshot.png', fullPage: false });
+    console.log('📸 Screenshot saved as debug-screenshot.png');
+    
+    await page.close();
     
   } catch (error) {
-    console.error('Error:', error.message);
+    console.error('❌ Test failed:', error);
+  } finally {
+    if (browser) {
+      await browser.close();
+      console.log('🧹 Browser closed');
+    }
   }
 }
 
-testPage();
+// Run the test
+testXPathScraper().catch(console.error);

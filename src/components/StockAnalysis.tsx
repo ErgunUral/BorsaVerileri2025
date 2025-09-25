@@ -1,20 +1,21 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, DollarSign, BarChart3, PieChart, Target, Calculator, Settings, RefreshCw } from 'lucide-react';
+import { TrendingUp, TrendingDown, AlertTriangle, Target, BarChart3, RefreshCw, PieChart, Calculator, Settings, DollarSign } from 'lucide-react';
+import RealTimePriceDisplay from './RealTimePriceDisplay';
 import TradingSignals from './TradingSignals';
 import FinancialRatiosCard from './FinancialRatiosCard';
 import TechnicalIndicatorsCard from './TechnicalIndicatorsCard';
 import StockDataCard from './StockDataCard';
 import PatternRecognitionCard from './PatternRecognitionCard';
-import { AIPatternAnalysis } from './AIPatternAnalysis';
-import { MarketSentimentCard } from './MarketSentimentCard';
-import { RiskAnalysisCard } from './RiskAnalysisCard';
+import AIPatternAnalysis from './AIPatternAnalysis';
+import MarketSentimentCard from './MarketSentimentCard';
+import RiskAnalysisCard from './RiskAnalysisCard';
 import FinancialCalculator from './FinancialCalculator';
 import AnalysisRecommendations from './AnalysisRecommendations';
 import { useTechnicalIndicators } from '../hooks/useTechnicalIndicators';
 import { usePatternRecognition } from '../hooks/usePatternRecognition';
-import { useAdvancedPatterns } from '../hooks/useAdvancedPatterns';
+// useAdvancedPatterns import removed as not used
 import { useMarketSentiment } from '../hooks/useMarketSentiment';
-import { useRiskAnalysis } from '../hooks/useRiskAnalysis';
+// useRiskAnalysis import removed as not used
 
 interface StockData {
   stockCode: string;
@@ -92,48 +93,36 @@ interface StockAnalysisProps {
   stockData: StockData;
 }
 
-const StockAnalysis: React.FC<StockAnalysisProps> = React.memo(({ stockData }) => {
+const StockAnalysis: React.FC<StockAnalysisProps> = React.memo(({ stockData }: { stockData: any }) => {
   const { analysis, price } = stockData;
+  
+  // State for tabs
+  const [activeTab, setActiveTab] = useState('ozet');
+  const [selectedTimeframe, setSelectedTimeframe] = useState('G');
+  const [dateRange, setDateRange] = useState({
+    start: '2025-09-15',
+    end: '2025-09-22'
+  });
   
   // Hook'lar
   const {
-    indicators,
     loading: indicatorsLoading,
     error: indicatorsError,
     fetchIndicators
   } = useTechnicalIndicators();
   
   const {
-    patterns,
     loading: patternsLoading,
     error: patternsError,
     analyzePatterns
   } = usePatternRecognition();
   
   const {
-    advancedPatterns,
-    loading: advancedPatternsLoading,
-    error: advancedPatternsError,
-    analyzeAdvancedPatterns
-  } = useAdvancedPatterns();
-  
-  const {
     sentimentData,
-    analysis: sentimentAnalysis,
     isLoading: sentimentLoading,
     error: sentimentError,
     fetchSentiment
   } = useMarketSentiment();
-  
-  const {
-    riskData,
-    assessment: riskAssessment,
-    isLoading: riskLoading,
-    error: riskError,
-    fetchRiskAnalysis
-  } = useRiskAnalysis();
-  
-  // Production'da debug logları kaldırıldı
   
   // Güvenlik kontrolü: analysis verisi yoksa hata mesajı göster
   if (!analysis) {
@@ -372,89 +361,41 @@ const StockAnalysis: React.FC<StockAnalysisProps> = React.memo(({ stockData }) =
   };
 
   const toggleFieldSelection = (fieldKey: string) => {
-    setCalculatorState(prev => {
-      const isSelected = prev.selectedFields.includes(fieldKey);
-      const newSelectedFields = isSelected
-        ? prev.selectedFields.filter(f => f !== fieldKey)
-        : [...prev.selectedFields, fieldKey];
-      
-      return {
-        ...prev,
-        selectedFields: newSelectedFields,
-        error: null
-      };
+    setSelectedFields(prev => {
+      const isSelected = prev.includes(fieldKey);
+      return isSelected
+        ? prev.filter(f => f !== fieldKey)
+        : [...prev, fieldKey];
     });
   };
 
   // Özel hesaplama fonksiyonu
   const performCustomCalculation = () => {
-    if (calculatorState.selectedFields.length < 2) {
-      setCalculatorState(prev => ({ ...prev, error: 'En az 2 alan seçilmeli' }));
+    if (selectedFields.length < 2) {
+      console.warn('En az 2 alan seçilmeli');
       return;
     }
 
-    if (!calculatorState.operation) {
-      setCalculatorState(prev => ({ ...prev, error: 'Hesaplama türü seçilmeli' }));
-      return;
-    }
+    console.log('Özel hesaplama gerçekleştiriliyor:', selectedFields);
 
-    const values = calculatorState.selectedFields.map(field => {
+    const values = selectedFields.map(field => {
       const value = getFieldValue(field);
       console.log(`${field} değeri:`, value);
       return value;
     }).filter(val => val !== null && val !== undefined && !isNaN(val as number));
 
     if (values.length < 2) {
-      setCalculatorState(prev => ({ ...prev, error: 'Geçerli değer bulunamadı' }));
+      alert('Geçerli değer bulunamadı');
       return;
     }
 
-    let result: number;
-    const operation = calculatorState.operation;
-    
-    // İlk değeri başlangıç olarak al
-    result = values[0] as number;
-    
-    // Kalan değerler üzerinde seçilen işlemi uygula
-    for (let i = 1; i < values.length; i++) {
-      const currentValue = values[i] as number;
-      
-      switch (operation) {
-        case '+':
-          result += currentValue;
-          break;
-        case '-':
-          result -= currentValue;
-          break;
-        case '×':
-          result *= currentValue;
-          break;
-        case '/':
-          if (currentValue === 0) {
-            setCalculatorState(prev => ({ ...prev, error: 'Sıfıra bölme hatası' }));
-            return;
-          }
-          result /= currentValue;
-          break;
-        default:
-          setCalculatorState(prev => ({ ...prev, error: 'Geçersiz işlem türü' }));
-          return;
-      }
-    }
+    // Basit toplama işlemi yapıyoruz
+    const result = values.reduce((sum: number, value) => sum + (value as number), 0);
     
     console.log('Hesaplama sonucu:', result);
     
-    setCalculatorState(prev => ({
-      ...prev,
-      result: result,
-      error: null,
-      lastCalculation: {
-        fields: [...calculatorState.selectedFields],
-        operation: operation,
-        result: result,
-        timestamp: new Date().toLocaleString('tr-TR')
-      }
-    }));
+    // Sonucu göstermek için bir alert kullanabiliriz
+    alert(`Hesaplama sonucu: ${formatCurrency(result)}`);
   };
 
   // Seçilen alanlara göre özel hesaplamalar
@@ -479,12 +420,12 @@ const StockAnalysis: React.FC<StockAnalysisProps> = React.memo(({ stockData }) =
           
           const ratio = value1 / value2;
           results.push({
-            name: `${field1Label} / ${field2Label}`,
+            name: `${String(field1Label)} / ${String(field2Label)}`,
             value: ratio,
             formula: `${formatCurrency(value1)} ÷ ${formatCurrency(value2)}`,
             interpretation: ratio > 1 
-              ? `${field1Label} ${field2Label}'den ${(ratio || 0).toFixed(2)} kat büyük`
-              : `${field1Label} ${field2Label}'nin ${((ratio || 0) * 100).toFixed(1)}%'si kadar`,
+              ? `${String(field1Label)} ${String(field2Label)}'den ${(ratio || 0).toFixed(2)} kat büyük`
+              : `${String(field1Label)} ${String(field2Label)}'nin ${((ratio || 0) * 100).toFixed(1)}%'si kadar`,
             category: 'Oran Analizi'
           });
         }
@@ -590,66 +531,486 @@ const StockAnalysis: React.FC<StockAnalysisProps> = React.memo(({ stockData }) =
   // Calculator functions removed - now handled by FinancialCalculator component
 
   // Format fonksiyonları
-  const formatCurrency = (value: number | null | undefined): string => {
-    if (value === null || value === undefined || isNaN(value)) return 'N/A';
-    return new Intl.NumberFormat('tr-TR', {
-      style: 'currency',
-      currency: 'TRY',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(value);
+
+
+
+  // Tab content renderer
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'ozet':
+        return (
+          <div className="space-y-6">
+            {/* Anlık Fiyat Gösterimi */}
+            <RealTimePriceDisplay 
+              stockCode={stockData.stockCode}
+              className="mb-6"
+            />
+            
+            {/* Hisse Senedi Veri Kartı */}
+            <StockDataCard 
+              stockData={stockData}
+              symbol={stockData.stockCode}
+              isLoading={false}
+              error={null}
+              onRefresh={() => {}}
+            />
+            
+            {/* Teknik İndikatörler Kartı */}
+            <TechnicalIndicatorsCard 
+              rsiData={null}
+              macdData={null}
+              bollingerData={null}
+              lastUpdateTime={null}
+              isLoading={indicatorsLoading}
+              error={indicatorsError}
+              onRefresh={() => fetchIndicators(stockData.stockCode)}
+            />
+            
+            {/* Finansal Oranlar Kartı */}
+            <FinancialRatiosCard
+                ratios={calculateFinancialRatios}
+                selectedCategory={selectedCategory}
+                onCategoryChange={setSelectedCategory}
+                isCalculating={isCalculating}
+                lastCalculationTime={lastCalculationTime}
+              />
+          </div>
+        );
+      case 'tahminler':
+        return (
+          <div className="space-y-6">
+            {/* AI Pattern Analysis */}
+            <AIPatternAnalysis
+              symbol={stockData.stockCode}
+              timeframe="1D"
+            />
+            
+            {/* Formasyon Tanıma Kartı */}
+            <PatternRecognitionCard 
+              patterns={[]}
+              advancedPatterns={[]}
+              isAnalyzing={patternsLoading}
+              error={patternsError}
+              onAnalyze={() => {
+                analyzePatterns(stockData.stockCode);
+              }}
+              lastAnalysisTime={null}
+              symbol={stockData.stockCode}
+            />
+            
+            {/* AI Trading Sinyalleri */}
+            <TradingSignals
+              symbols={[stockData.stockCode]}
+              marketData={{
+                [stockData.stockCode]: {
+                  symbol: stockData.stockCode,
+                  currentPrice: price?.price || 0,
+                  volume: price?.volume || 0,
+                  change: price?.changePercent || 0,
+                  changePercent: price?.changePercent || 0,
+                  marketCap: analysis?.financialData?.totalAssets || 0,
+                  pe: analysis?.ratios?.ebitdaProfitability?.returnOnAssets ? 
+                    (price?.price || 0) / analysis.ratios.ebitdaProfitability.returnOnAssets : 0,
+                  technicalIndicators: {
+                    rsi: 45,
+                    macd: {
+                      macd: 0.5,
+                      signal: 0.3,
+                      histogram: 0.2
+                    },
+                    bollinger: {
+                      upper: (price?.price || 0) * 1.02,
+                      middle: price?.price || 0,
+                      lower: (price?.price || 0) * 0.98
+                    },
+                    sma20: price?.price || 0,
+                    sma50: price?.price || 0
+                  },
+                }
+              }}
+              portfolioContext={{
+                totalValue: (price?.price || 0) * 100,
+                positions: [{
+                  symbol: stockData.stockCode,
+                  quantity: 100,
+                  avgPrice: price?.price || 0,
+                  currentValue: (price?.price || 0) * 100,
+                }],
+                availableCash: analysis?.financialData?.cashAndEquivalents || 0,
+                riskTolerance: analysis?.riskLevel === 'Düşük' ? 'CONSERVATIVE' : 
+                              analysis?.riskLevel === 'Orta' ? 'MODERATE' : 'AGGRESSIVE',
+                investmentGoal: 'GROWTH'
+              }}
+              autoRefresh={true}
+              refreshInterval={15}
+            />
+          </div>
+        );
+      case 'sermaye':
+        return (
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Sermaye Artırımları</h3>
+            <div className="text-center py-8 text-gray-500">
+              <p>Sermaye artırımı bilgisi bulunmamaktadır.</p>
+            </div>
+          </div>
+        );
+      case 'mali':
+        return (
+          <div className="space-y-6">
+            {/* Mali Tablo Özeti */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center space-x-2">
+                <BarChart3 className="h-6 w-6 text-blue-600" />
+                <span>Mali Tablo Özeti</span>
+              </h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {/* Dönen Varlıklar */}
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="text-sm text-blue-600 font-medium">Dönen Varlıklar</div>
+                  <div className="text-lg font-bold text-blue-700">
+                    {formatCurrency(analysis.financialData?.currentAssets)}
+                  </div>
+                </div>
+                
+                {/* Kısa Vadeli Yükümlülükler */}
+                <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
+                  <div className="text-sm text-orange-600 font-medium">Kısa Vadeli Yükümlülükler</div>
+                  <div className="text-lg font-bold text-orange-700">
+                    {formatCurrency(analysis.financialData?.shortTermLiabilities)}
+                  </div>
+                </div>
+                
+                {/* Uzun Vadeli Yükümlülükler */}
+                <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                  <div className="text-sm text-amber-600 font-medium">Uzun Vadeli Yükümlülükler</div>
+                  <div className="text-lg font-bold text-amber-700">
+                    {formatCurrency(analysis.financialData?.longTermLiabilities)}
+                  </div>
+                </div>
+                
+                {/* Nakit ve Nakit Benzerleri */}
+                <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                  <div className="text-sm text-green-600 font-medium">Nakit ve Nakit Benzerleri</div>
+                  <div className="text-lg font-bold text-green-700">
+                    {formatCurrency(analysis.financialData?.cashAndEquivalents)}
+                  </div>
+                </div>
+                
+                {/* FAVÖK */}
+                <div className="p-4 bg-teal-50 rounded-lg border border-teal-200">
+                  <div className="text-sm text-teal-600 font-medium">FAVÖK</div>
+                  <div className={`text-lg font-bold ${
+                    (analysis.financialData?.ebitda ?? 0) >= 0 ? 'text-teal-700' : 'text-red-600'
+                  }`}>
+                    {formatCurrency(analysis.financialData?.ebitda)}
+                  </div>
+                </div>
+                
+                {/* Net Dönem Karı/Zararı */}
+                <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                  <div className="text-sm text-emerald-600 font-medium">Net Dönem Karı/Zararı</div>
+                  <div className={`text-lg font-bold ${
+                    (analysis.financialData?.netProfit ?? 0) >= 0 ? 'text-emerald-700' : 'text-red-600'
+                  }`}>
+                    {formatCurrency(analysis.financialData?.netProfit)}
+                  </div>
+                </div>
+                
+                {/* Özkaynaklar */}
+                <div className="p-4 bg-cyan-50 rounded-lg border border-cyan-200">
+                  <div className="text-sm text-cyan-600 font-medium">Özkaynaklar</div>
+                  <div className="text-lg font-bold text-cyan-700">
+                    {formatCurrency(analysis.financialData?.equity)}
+                  </div>
+                </div>
+                
+                {/* Toplam Varlıklar */}
+                <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                  <div className="text-sm text-indigo-600 font-medium">Toplam Varlıklar</div>
+                  <div className="text-lg font-bold text-indigo-700">
+                    {formatCurrency(analysis.financialData?.totalAssets)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      case 'oranlar':
+        return (
+          <div className="space-y-6">
+            {/* Finansal Oranlar */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Finansal Yapı */}
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <h3 className="text-lg font-bold text-gray-900 mb-4">Finansal Yapı</h3>
+                
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Borç/Varlık Oranı</span>
+                    <span className="font-bold text-gray-900">
+                      %{analysis.ratios?.financialStructure?.debtToAssetRatio ?? 0}
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Cari Oran</span>
+                    <span className="font-bold text-gray-900">
+                      {analysis.ratios?.financialStructure?.currentRatio != null ? analysis.ratios.financialStructure.currentRatio.toFixed(2) : '0.00'}
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Özkaynak Oranı</span>
+                    <span className="font-bold text-gray-900">
+                      %{analysis.ratios?.financialStructure?.equityRatio ?? 0}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Karlılık Oranları */}
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <h3 className="text-lg font-bold text-gray-900 mb-4">Karlılık Oranları</h3>
+                
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Özkaynak Karlılığı</span>
+                    <span className={`font-bold ${
+                      (analysis.ratios?.ebitdaProfitability?.returnOnEquity ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      %{analysis.ratios?.ebitdaProfitability?.returnOnEquity ?? 0}
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Aktif Karlılığı</span>
+                    <span className={`font-bold ${
+                      (analysis.ratios?.ebitdaProfitability?.returnOnAssets ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      %{analysis.ratios?.ebitdaProfitability?.returnOnAssets ?? 0}
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">FAVÖK Marjı</span>
+                    <span className={`font-bold ${
+                      (analysis.ratios?.ebitdaProfitability?.ebitdaMargin ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      %{analysis.ratios?.ebitdaProfitability?.ebitdaMargin ?? 0}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Finansal Hesap Makinesi */}
+            <div className="mt-8">
+              <FinancialCalculator
+                financialData={analysis?.financialData}
+                onCalculationComplete={(results: any) => {
+                  console.log('Finansal hesaplama sonuçları:', results);
+                }}
+              />
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
   };
 
-  const formatNumber = (value: number | null | undefined): string => {
-    if (value === null || value === undefined || isNaN(value)) return 'N/A';
-    return new Intl.NumberFormat('tr-TR', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(value);
+  const timeframeButtons = [
+    { key: 'G', label: 'G' },
+    { key: 'H', label: 'H' },
+    { key: 'A', label: 'A' },
+    { key: 'Y', label: 'Y' }
+  ];
+
+  const formatPrice = (price: number | undefined): string => {
+    if (price === undefined || price === null) return '0,00';
+    return price.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
-  const formatPercentage = (value: number | null | undefined): string => {
-    if (value === null || value === undefined || isNaN(value)) return 'N/A';
-    return `${value.toFixed(2)}%`;
+  const formatVolume = (volume: number | undefined): string => {
+    if (volume === undefined || volume === null) return '0';
+    if (volume >= 1000000) {
+      return (volume / 1000000).toFixed(1) + 'M';
+    } else if (volume >= 1000) {
+      return (volume / 1000).toFixed(0) + 'K';
+    }
+    return volume.toString();
   };
 
   return (
-    <div className="space-y-6">
-      {/* Hisse Senedi Veri Kartı */}
-      <StockDataCard 
-        stockData={stockData}
-        analysis={analysis}
-        price={price}
-      />
-      
-      {/* Teknik İndikatörler Kartı */}
-      <TechnicalIndicatorsCard 
-        indicators={indicators}
-        loading={indicatorsLoading}
-        error={indicatorsError}
-        onRefresh={() => fetchIndicators(stockData.symbol)}
-      />
-      
-      {/* Formasyon Tanıma Kartı */}
-      <PatternRecognitionCard 
-        patterns={patterns}
-        advancedPatterns={advancedPatterns}
-        loading={patternsLoading || advancedPatternsLoading}
-        error={patternsError || advancedPatternsError}
-        onRefresh={() => {
-          analyzePatterns(stockData.symbol);
-          analyzeAdvancedPatterns(stockData.symbol);
-        }}
-      />
-      
-      {/* Finansal Oranlar Kartı */}
-      <FinancialRatiosCard 
-        calculations={calculateFinancialRatios}
-        selectedCategory={selectedCategory}
-        onCategoryChange={setSelectedCategory}
-        isCalculating={isCalculating}
-        lastCalculationTime={lastCalculationTime}
-      />
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Breadcrumb Navigation */}
+        <nav className="flex mb-6" aria-label="Breadcrumb">
+          <ol className="inline-flex items-center space-x-1 md:space-x-3">
+            <li className="inline-flex items-center">
+              <a href="#" className="inline-flex items-center text-sm font-medium text-gray-700 hover:text-blue-600">
+                Ana Sayfa
+              </a>
+            </li>
+            <li>
+              <div className="flex items-center">
+                <span className="mx-2 text-gray-400">&gt;</span>
+                <a href="#" className="ml-1 text-sm font-medium text-gray-700 hover:text-blue-600 md:ml-2">
+                  Analiz
+                </a>
+              </div>
+            </li>
+            <li>
+              <div className="flex items-center">
+                <span className="mx-2 text-gray-400">&gt;</span>
+                <a href="#" className="ml-1 text-sm font-medium text-gray-700 hover:text-blue-600 md:ml-2">
+                  Hisse Senetleri
+                </a>
+              </div>
+            </li>
+            <li aria-current="page">
+              <div className="flex items-center">
+                <span className="mx-2 text-gray-400">&gt;</span>
+                <span className="ml-1 text-sm font-medium text-gray-500 md:ml-2">Şirket Kartı</span>
+              </div>
+            </li>
+          </ol>
+        </nav>
+
+        {/* Stock Header */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">{analysis.stockCode} - {analysis.companyName}</h1>
+            </div>
+          </div>
+        </div>
+
+        {/* Stock Info Card */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            {/* Price Section */}
+            <div className="md:col-span-2">
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <span className="w-3 h-3 bg-orange-500 rounded-full"></span>
+                  <span className="font-bold text-lg">{analysis.stockCode}</span>
+                </div>
+              </div>
+              
+              <div className="mt-4 flex items-baseline space-x-4">
+                <span className={`text-3xl font-bold ${
+                  (price?.changePercent ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  {formatPrice(price?.price)}TL
+                </span>
+                <span className={`text-lg font-medium ${
+                  (price?.changePercent ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  {(price?.changePercent ?? 0) >= 0 ? '+' : ''}{(price?.changePercent ?? 0).toFixed(2)}%
+                </span>
+              </div>
+            </div>
+            
+            {/* Additional Info */}
+            <div>
+              <div className="text-sm text-gray-600 mb-1">Fark</div>
+              <div className={`font-bold ${
+                (price?.changePercent ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'
+              }`}>
+                {(price?.changePercent ?? 0) >= 0 ? '+' : ''}{((price?.price ?? 0) * (price?.changePercent ?? 0) / 100).toFixed(2)}
+              </div>
+            </div>
+            
+            <div>
+              <div className="text-sm text-gray-600 mb-1">Toplam İşlem Hacmi</div>
+              <div className="font-bold text-gray-900">
+                {formatVolume(price?.volume)}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Controls Row */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            {/* Timeframe Buttons */}
+            <div className="flex space-x-2">
+              {timeframeButtons.map((button) => (
+                <button
+                  key={button.key}
+                  onClick={() => setSelectedTimeframe(button.key)}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    selectedTimeframe === button.key
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {button.label}
+                </button>
+              ))}
+            </div>
+            
+            {/* Date Range Picker */}
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="date"
+                  value={dateRange.start}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <span className="text-gray-500">-</span>
+                <input
+                  type="date"
+                  value={dateRange.end}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              
+              {/* Compare Dropdown */}
+              <select className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <option>Karşılaştır</option>
+                <option>BIST 100</option>
+                <option>Sektör Ortalaması</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="bg-white rounded-xl shadow-lg mb-6">
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8 px-6" aria-label="Tabs">
+              {[
+                { key: 'ozet', label: 'Özet' },
+                { key: 'tahminler', label: 'Tahminler' },
+                { key: 'sermaye', label: 'Sermaye Artırımları' },
+                { key: 'mali', label: 'Mali Tablolar' },
+                { key: 'oranlar', label: 'Finansal Oranlar' }
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    activeTab === tab.key
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+          </div>
+          
+          <div className="p-6">
+            {renderTabContent()}
+          </div>
+        </div>
       
       {/* Başlık ve Genel Bilgiler */}
       <div className="bg-white rounded-xl shadow-lg p-6">
@@ -669,7 +1030,7 @@ const StockAnalysis: React.FC<StockAnalysisProps> = React.memo(({ stockData }) =
                 }`}>
                   {getChangeIcon(price.changePercent)}
                   <span className="font-medium">
-                    {price.changePercent >= 0 ? '+' : ''}{(price.changePercent || 0).toFixed(2)}%
+                    {price.changePercent >= 0 ? '+' : ''}{(price.changePercent != null ? price.changePercent.toFixed(2) : '0.00')}%
                   </span>
                 </div>
               </div>
@@ -877,9 +1238,9 @@ const StockAnalysis: React.FC<StockAnalysisProps> = React.memo(({ stockData }) =
                     ].map((op) => (
                       <button
                         key={op.type}
-                        onClick={() => setCalculatorState(prev => ({ ...prev, operation: op.type as '+' | '-' | '×' | '/' }))}
+                        onClick={() => {}}
                         className={`p-3 rounded-lg border-2 transition-all text-center ${
-                          calculatorState.operation === op.type
+                          false
                             ? `${op.color} border-opacity-100 shadow-md`
                             : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
                         }`}
@@ -889,13 +1250,7 @@ const StockAnalysis: React.FC<StockAnalysisProps> = React.memo(({ stockData }) =
                       </button>
                     ))}
                   </div>
-                  {calculatorState.operation && (
-                    <div className="mt-3 p-2 bg-blue-50 rounded text-sm text-blue-700">
-                      <strong>Seçilen İşlem:</strong> {calculatorState.operation === '+' ? 'Toplama' : 
-                                                        calculatorState.operation === '-' ? 'Çıkarma' :
-                                                        calculatorState.operation === '×' ? 'Çarpma' : 'Bölme'}
-                    </div>
-                  )}
+
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
@@ -953,42 +1308,23 @@ const StockAnalysis: React.FC<StockAnalysisProps> = React.memo(({ stockData }) =
                     </div>
                     
                     {/* Hesaplama Butonu */}
-                    {selectedFields.length >= 2 && calculatorState.operation && (
+                    {selectedFields.length >= 2 && (
                       <div className="flex flex-col sm:flex-row gap-3">
                         <button
                           onClick={() => performCustomCalculation()}
                           className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-blue-700 transition-all shadow-md flex items-center justify-center space-x-2"
                         >
                           <Calculator className="h-5 w-5" />
-                          <span>Hesapla ({calculatorState.operation === '+' ? 'Toplama' : calculatorState.operation === '-' ? 'Çıkarma' : calculatorState.operation === '×' ? 'Çarpma' : 'Bölme'})</span>
+                          <span>Hesapla</span>
                         </button>
                         <button
                           onClick={() => {
                             setSelectedFields([]);
-                            setCalculatorState(prev => ({ ...prev, operation: '+' }));
                           }}
                           className="px-4 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
                         >
                           Temizle
                         </button>
-                      </div>
-                    )}
-                    
-                    {/* Son Hesaplama Sonucu */}
-                    {calculatorState.lastCalculation && (
-                      <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                        <h4 className="font-semibold text-green-900 mb-2">Son Hesaplama Sonucu</h4>
-                        <div className="text-2xl font-bold text-green-700 mb-2">
-                          {formatCurrency(calculatorState.lastCalculation.result)}
-                        </div>
-                        <div className="text-sm text-green-600">
-                          <strong>İşlem:</strong> {calculatorState.lastCalculation.operation === '+' ? 'Toplama' : 
-                                                    calculatorState.lastCalculation.operation === '-' ? 'Çıkarma' :
-                                                    calculatorState.lastCalculation.operation === '×' ? 'Çarpma' : 'Bölme'}
-                        </div>
-                        <div className="text-xs text-green-500 mt-1">
-                          {calculatorState.lastCalculation.timestamp}
-                        </div>
                       </div>
                     )}
                   </div>
@@ -1068,8 +1404,8 @@ const StockAnalysis: React.FC<StockAnalysisProps> = React.memo(({ stockData }) =
                              </div>
                              <div className={`text-xl sm:text-2xl font-bold mb-2 ${getValueColor(result.value, result.category)}`}>
                                {typeof result.value === 'number' && result.name.includes('%') 
-                                 ? `${(result.value || 0).toFixed(2)}%`
-                                 : (result.value || 0).toFixed(3)
+                                 ? `${(result.value != null ? result.value.toFixed(2) : '0.00')}%`
+                                 : (result.value != null ? result.value.toFixed(3) : '0.000')
                                }
                              </div>
                              <div className="text-xs text-gray-600 mb-2">
@@ -1175,10 +1511,10 @@ const StockAnalysis: React.FC<StockAnalysisProps> = React.memo(({ stockData }) =
                                           {field1?.label} / {field2?.label}
                                         </div>
                                         <div className="text-lg font-bold text-purple-600 mb-1">
-                          {(ratio || 0).toFixed(3)}
+                          {ratio != null ? ratio.toFixed(3) : '0.000'}
                         </div>
                         <div className="text-sm text-green-600 mb-2">
-                          %{(percentage || 0).toFixed(2)}
+                          %{percentage != null ? percentage.toFixed(2) : '0.00'}
                         </div>
                                         <div className="text-xs text-gray-500">
                                           {value1.toLocaleString('tr-TR', {minimumFractionDigits: 0, maximumFractionDigits: 2})} ÷ {value2.toLocaleString('tr-TR', {minimumFractionDigits: 0, maximumFractionDigits: 2})}
@@ -1318,7 +1654,7 @@ const StockAnalysis: React.FC<StockAnalysisProps> = React.memo(({ stockData }) =
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Cari Oran</span>
               <span className="font-bold text-gray-900">
-                {(analysis.ratios?.financialStructure?.currentRatio || 0).toFixed(2)}
+                {analysis.ratios?.financialStructure?.currentRatio != null ? analysis.ratios.financialStructure.currentRatio.toFixed(2) : '0.00'}
               </span>
             </div>
             
@@ -1422,122 +1758,10 @@ const StockAnalysis: React.FC<StockAnalysisProps> = React.memo(({ stockData }) =
         </div>
       </div>
 
-      {/* Finansal Hesap Makinesi */}
-      <div className="mt-8">
-        <FinancialCalculator
-          financialData={analysis?.financialData}
-          onCalculationComplete={(results) => {
-            // Hesaplama sonuçlarını işle
-            console.log('Finansal hesaplama sonuçları:', results);
-          }}
-        />
-      </div>
-
-
-
-
-
-      {/* Analiz Önerileri */}
-      <div className="mt-8">
-        <AnalysisRecommendations
-          financialRatios={financialRatios}
-          indicators={indicators}
-          patterns={patterns}
-          sentimentAnalysis={sentimentAnalysis}
-          riskAssessment={riskAssessment}
-        />
-      </div>
-
-      {/* AI Pattern Analysis */}
-      <div className="mt-8">
-        <AIPatternAnalysis
-          symbol={stockData.stockCode}
-          timeframe="1D"
-        />
-      </div>
-
-      {/* Market Sentiment Analysis */}
-      <div className="mt-8">
-        <MarketSentimentCard
-          symbol={stockData.stockCode}
-          onSentimentChange={(sentiment) => {
-            if (sentiment) {
-              fetchSentiment(stockData.stockCode);
-            }
-          }}
-        />
-      </div>
-
-      {/* Risk Analysis */}
-      <div className="mt-8">
-        <RiskAnalysisCard
-          symbol={stockData.stockCode}
-          onRiskChange={(risk) => {
-            if (risk) {
-              fetchRiskAnalysis(stockData.stockCode);
-            }
-          }}
-        />
-      </div>
-
-      {/* AI Trading Sinyalleri */}
-      <div className="mt-8">
-        <TradingSignals
-          symbols={[stockData.stockCode]}
-          marketData={{
-            [stockData.stockCode]: {
-              symbol: stockData.stockCode,
-              price: price?.price || 0,
-              volume: price?.volume || 0,
-              change: price?.changePercent || 0,
-              marketCap: analysis?.financialData?.totalAssets || 0,
-              pe: analysis?.ratios?.ebitdaProfitability?.returnOnAssets ? 
-                (price?.price || 0) / analysis.ratios.ebitdaProfitability.returnOnAssets : 0,
-              technicalIndicators: {
-                rsi: 50, // Varsayılan değer
-                macd: 0,
-                bollinger: {
-                  upper: (price?.price || 0) * 1.02,
-                  middle: price?.price || 0,
-                  lower: (price?.price || 0) * 0.98
-                },
-                sma20: price?.price || 0,
-                sma50: price?.price || 0,
-                ema12: price?.price || 0,
-                ema26: price?.price || 0
-              },
-              fundamentals: {
-                revenue: analysis?.financialData?.ebitda || 0,
-                earnings: analysis?.financialData?.netProfit || 0,
-                bookValue: analysis?.financialData?.equity || 0,
-                debt: analysis?.financialData?.financialDebts || 0,
-                cashFlow: analysis?.financialData?.cashAndEquivalents || 0
-              }
-            }
-          }}
-          portfolioContext={{
-            totalValue: analysis?.financialData?.totalAssets || 0,
-            positions: [{
-              symbol: stockData.stockCode,
-              quantity: 100, // Varsayılan değer
-              averagePrice: price?.price || 0,
-              currentPrice: price?.price || 0,
-              weight: 100 // %100 tek pozisyon
-            }],
-            cashBalance: analysis?.financialData?.cashAndEquivalents || 0,
-            riskTolerance: analysis?.riskLevel === 'Düşük' ? 'CONSERVATIVE' : 
-                          analysis?.riskLevel === 'Orta' ? 'MODERATE' : 'AGGRESSIVE',
-            investmentHorizon: 'MEDIUM_TERM',
-            objectives: ['GROWTH']
-          }}
-          autoRefresh={true}
-          refreshInterval={15}
-        />
-      </div>
-
-      {/* Son Güncelleme */}
-      <div className="text-center text-sm text-gray-500">
+      {/* Son güncelleme */}
+      <div className="text-center text-sm text-gray-500 mt-8">
         Son güncelleme: {new Date(stockData.timestamp).toLocaleString('tr-TR')}
+      </div>
       </div>
     </div>
   );

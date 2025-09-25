@@ -1,4 +1,4 @@
-import logger from '../utils/logger.js';
+import logger from '../utils/logger';
 
 export interface AIPatternResult {
   patternType: string;
@@ -54,7 +54,7 @@ class AIPatternRecognitionService {
       
       return patterns;
     } catch (error) {
-      logger.error('AI Pattern analysis error:', error);
+      logger.error('AI Pattern analysis error:', error as Error);
       throw new Error('AI pattern analysis failed');
     }
   }
@@ -73,7 +73,7 @@ class AIPatternRecognitionService {
       
       return formations;
     } catch (error) {
-      logger.error('Formation tracking error:', error);
+      logger.error('Formation tracking error:', error as Error);
       throw new Error('Formation tracking failed');
     }
   }
@@ -131,7 +131,7 @@ class AIPatternRecognitionService {
         patterns
       };
     } catch (error) {
-      logger.error('AI signals generation error:', error);
+      logger.error('AI signals generation error:', error as Error);
       throw new Error('AI signals generation failed');
     }
   }
@@ -139,7 +139,7 @@ class AIPatternRecognitionService {
   /**
    * Detect chart patterns using AI algorithms
    */
-  private async detectPatterns(priceData: any[], timeframe: string): Promise<AIPatternResult[]> {
+  private async detectPatterns(priceData: any[], _timeframe: string): Promise<AIPatternResult[]> {
     // Simulate AI pattern detection
     const patterns: AIPatternResult[] = [];
 
@@ -231,7 +231,6 @@ class AIPatternRecognitionService {
       const rightShoulder = Math.max(...highs.slice(maxIndex + 2));
       
       if (leftShoulder < maxHigh * 0.98 && rightShoulder < maxHigh * 0.98) {
-        const currentPrice = priceData[priceData.length - 1].close;
         const neckline = Math.min(...recentData.map(d => d.low));
         
         return {
@@ -267,7 +266,6 @@ class AIPatternRecognitionService {
     
     if (Math.abs(highTrend) < 0.1 && lowTrend > 0.1) {
       // Ascending triangle
-      const currentPrice = priceData[priceData.length - 1].close;
       const resistance = Math.max(...highs);
       
       return {
@@ -300,7 +298,6 @@ class AIPatternRecognitionService {
     const trend = this.calculateTrendSlope(prices);
     
     if (volatility < 0.02 && Math.abs(trend) < 0.05) {
-      const currentPrice = priceData[priceData.length - 1].close;
       const flagHigh = Math.max(...prices);
       const flagLow = Math.min(...prices);
       
@@ -420,5 +417,6 @@ class AIPatternRecognitionService {
   }
 }
 
+export { AIPatternRecognitionService };
 export const aiPatternRecognitionService = new AIPatternRecognitionService();
 export default aiPatternRecognitionService;

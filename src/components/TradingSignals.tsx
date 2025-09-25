@@ -14,7 +14,7 @@ import {
   AlertTriangle,
   BarChart3,
   Brain,
-  Refresh,
+  RefreshCw,
   DollarSign,
   PieChart,
   Activity,
@@ -69,45 +69,96 @@ const TradingSignals: React.FC<TradingSignalsProps> = ({
   const [selectedSymbol, setSelectedSymbol] = useState<string>('');
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
-  // Auto refresh functionality
+  const handleRefreshAll = useCallback(async () => {
+    if (symbols.length === 0 || Object.keys(marketData).length === 0) {
+      console.debug('TradingSignals: Skipping refresh - no symbols or market data');
+      return;
+    }
+
+    // Rate limiting kontrolü
+    const now = Date.now();
+    const timeSinceLastRefresh = now - lastRefresh.getTime();
+    const minInterval = 2 * 60 * 1000; // 2 dakika minimum
+    
+    if (timeSinceLastRefresh < minInterval) {
+      console.debug('TradingSignals: Skipping refresh due to rate limiting. Time since last:', timeSinceLastRefresh, 'ms');
+      return;
+    }
+
+    try {
+      console.debug('TradingSignals: Starting data refresh for symbols:', symbols);
+      
+      // Sıralı API çağrıları (paralel değil) - rate limiting için
+      console.debug('TradingSignals: Step 1 - Generating signals');
+      await generateMultipleSignals(symbols, marketData, portfolioContext);
+      
+      // 1 saniye bekle
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      console.debug('TradingSignals: Step 2 - Analyzing market sentiment');
+      await analyzeMarketSentiment(symbols, marketData);
+      
+      // Portfolio analysis sadece gerektiğinde
+      if (portfolioContext) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        console.debug('TradingSignals: Step 3 - Portfolio recommendation');
+        await generatePortfolioRecommendation(portfolioContext, marketData);
+        
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        console.debug('TradingSignals: Step 4 - Risk analysis');
+        await analyzeRisk(portfolioContext, marketData);
+      }
+      
+      setLastRefresh(new Date());
+      console.debug('TradingSignals: Data refresh completed successfully at:', new Date().toISOString());
+    } catch (error) {
+      console.error('TradingSignals: Error during data refresh:', error);
+      
+      // 429 hatası kontrolü
+      if (error instanceof Error && error.message.includes('429')) {
+        console.warn('TradingSignals: Rate limit hit, will wait before next refresh');
+        // Bir sonraki refresh'i 5 dakika ertele
+        setLastRefresh(new Date(Date.now() + 3 * 60 * 1000));
+      }
+      
+      console.error('TradingSignals: Error details:', {
+        symbols,
+        marketDataKeys: Object.keys(marketData),
+        portfolioContext,
+        timestamp: new Date().toISOString(),
+        timeSinceLastRefresh
+      });
+    }
+  }, [symbols, marketData, portfolioContext, generateMultipleSignals, analyzeMarketSentiment, generatePortfolioRecommendation, analyzeRisk, lastRefresh]);
+
+  // Auto refresh functionality with rate limiting
   useEffect(() => {
     if (!autoRefresh || symbols.length === 0) return;
 
+    // Minimum 5 dakika aralık (rate limiting için)
+    const safeInterval = Math.max(refreshInterval, 5);
+    
+    console.debug('TradingSignals: Setting up auto-refresh with interval:', safeInterval, 'minutes');
+    
     const interval = setInterval(() => {
+      console.debug('TradingSignals: Auto-refresh triggered');
       handleRefreshAll();
-    }, refreshInterval * 60 * 1000);
+    }, safeInterval * 60 * 1000);
 
-    return () => clearInterval(interval);
-  }, [autoRefresh, refreshInterval, symbols]);
+    return () => {
+      console.debug('TradingSignals: Clearing auto-refresh interval');
+      clearInterval(interval);
+    };
+  }, [autoRefresh, refreshInterval, symbols, handleRefreshAll]);
 
   // Initial data load
   useEffect(() => {
     if (symbols.length > 0 && Object.keys(marketData).length > 0) {
       handleRefreshAll();
     }
-  }, [symbols, marketData]);
-
-  const handleRefreshAll = useCallback(async () => {
-    if (symbols.length === 0 || Object.keys(marketData).length === 0) return;
-
-    try {
-      // Generate signals
-      await generateMultipleSignals(symbols, marketData, portfolioContext);
-      
-      // Analyze market sentiment
-      await analyzeMarketSentiment(symbols, marketData);
-      
-      // Portfolio analysis if context provided
-      if (portfolioContext) {
-        await generatePortfolioRecommendation(portfolioContext, marketData);
-        await analyzeRisk(portfolioContext, marketData);
-      }
-      
-      setLastRefresh(new Date());
-    } catch (error) {
-      // Error logged to production logging system
-    }
-  }, [symbols, marketData, portfolioContext, generateMultipleSignals, analyzeMarketSentiment, generatePortfolioRecommendation, analyzeRisk]);
+  }, [symbols, marketData, handleRefreshAll]);
 
   const handleGetPerformance = useCallback(async (symbol: string) => {
     await getSignalPerformance(symbol, 30);
@@ -168,7 +219,38 @@ const TradingSignals: React.FC<TradingSignalsProps> = ({
     }
   };
 
-  const renderSignalCard = (signal: TradingSignal) => (
+  const renderSignalCard = (signal: TradingSignal) => {
+    try {
+      // Detaylı null kontrolleri ve logging
+      if (!signal) {
+        console.error('TradingSignals: Signal is null or undefined');
+        return null;
+      }
+      
+      if (!signal.symbol) {
+        console.error('TradingSignals: Signal symbol is missing:', signal);
+        return null;
+      }
+      
+      // Sayısal değerleri kontrol et ve logla
+      const safePrice = signal.price != null && typeof signal.price === 'number' && !isNaN(signal.price) ? signal.price : null;
+      const safeTargetPrice = signal.targetPrice != null && typeof signal.targetPrice === 'number' && !isNaN(signal.targetPrice) ? signal.targetPrice : null;
+      const safeStopLoss = signal.stopLoss != null && typeof signal.stopLoss === 'number' && !isNaN(signal.stopLoss) ? signal.stopLoss : null;
+      const safeConfidence = signal.confidence != null && typeof signal.confidence === 'number' && !isNaN(signal.confidence) ? signal.confidence : 0;
+      
+      if (safePrice === null) {
+        console.warn('TradingSignals: Invalid price for signal:', signal.symbol, 'price:', signal.price);
+      }
+      
+      if (safeTargetPrice === null && signal.targetPrice !== undefined) {
+        console.warn('TradingSignals: Invalid targetPrice for signal:', signal.symbol, 'targetPrice:', signal.targetPrice);
+      }
+      
+      if (safeStopLoss === null && signal.stopLoss !== undefined) {
+        console.warn('TradingSignals: Invalid stopLoss for signal:', signal.symbol, 'stopLoss:', signal.stopLoss);
+      }
+      
+      return (
     <Card key={signal.symbol} className="mb-4">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
@@ -190,26 +272,32 @@ const TradingSignals: React.FC<TradingSignalsProps> = ({
             <DollarSign className="h-4 w-4 text-gray-500" />
             <div>
               <p className="text-sm text-gray-600">Güncel Fiyat</p>
-              <p className="font-semibold">{signal.price.toFixed(2)} TL</p>
+              <p className="font-semibold">
+                {safePrice !== null ? `${safePrice.toFixed(2)} TL` : 'Fiyat bilgisi yok'}
+              </p>
             </div>
           </div>
           
-          {signal.targetPrice && (
+          {safeTargetPrice !== null && (
             <div className="flex items-center space-x-2">
               <Target className="h-4 w-4 text-blue-500" />
               <div>
                 <p className="text-sm text-gray-600">Hedef Fiyat</p>
-                <p className="font-semibold text-blue-600">{signal.targetPrice.toFixed(2)} TL</p>
+                <p className="font-semibold text-blue-600">
+                  {safeTargetPrice.toFixed(2)} TL
+                </p>
               </div>
             </div>
           )}
           
-          {signal.stopLoss && (
+          {safeStopLoss !== null && (
             <div className="flex items-center space-x-2">
               <Shield className="h-4 w-4 text-red-500" />
               <div>
                 <p className="text-sm text-gray-600">Stop Loss</p>
-                <p className="font-semibold text-red-600">{signal.stopLoss.toFixed(2)} TL</p>
+                <p className="font-semibold text-red-600">
+                  {safeStopLoss.toFixed(2)} TL
+                </p>
               </div>
             </div>
           )}
@@ -219,8 +307,8 @@ const TradingSignals: React.FC<TradingSignalsProps> = ({
             <div>
               <p className="text-sm text-gray-600">Güven Seviyesi</p>
               <div className="flex items-center space-x-2">
-                <Progress value={signal.confidence} className="w-16" />
-                <span className="text-sm font-semibold">{signal.confidence}%</span>
+                <Progress value={safeConfidence} className="w-16" />
+                <span className="text-sm font-semibold">{safeConfidence}%</span>
               </div>
             </div>
           </div>
@@ -281,7 +369,20 @@ const TradingSignals: React.FC<TradingSignalsProps> = ({
         </div>
       </CardContent>
     </Card>
-  );
+      );
+    } catch (error) {
+      console.error('TradingSignals: Error rendering signal card:', error, signal);
+      return (
+        <Card key={signal?.symbol || 'error'} className="mb-4 border-red-200">
+          <CardContent className="p-4 text-center">
+            <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-2" />
+            <p className="text-red-600 text-sm">Sinyal kartı yüklenirken hata oluştu</p>
+            <p className="text-gray-500 text-xs mt-1">{signal?.symbol || 'Bilinmeyen sembol'}</p>
+          </CardContent>
+        </Card>
+      );
+    }
+  };
 
   const renderMarketSentiment = () => {
     if (!marketSentiment) return null;
@@ -417,7 +518,7 @@ const TradingSignals: React.FC<TradingSignalsProps> = ({
                         {position.riskLevel}
                       </Badge>
                       <span className="text-sm text-gray-600">
-                        {position.portfolioWeight.toFixed(1)}% portföy
+                        {position.portfolioWeight != null && typeof position.portfolioWeight === 'number' ? `${position.portfolioWeight.toFixed(1)}% portföy` : 'Portföy ağırlığı bilgisi yok'}
                       </span>
                     </div>
                     <p className="text-sm text-gray-600">{position.recommendation}</p>
@@ -520,7 +621,7 @@ const TradingSignals: React.FC<TradingSignalsProps> = ({
             variant="outline"
             size="sm"
           >
-            <Refresh className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Yenile
           </Button>
         </div>
@@ -589,7 +690,9 @@ const TradingSignals: React.FC<TradingSignalsProps> = ({
                 <Star className="h-5 w-5 text-yellow-500" />
                 <div>
                   <p className="text-sm text-gray-600">Ort. Güven</p>
-                  <p className="text-2xl font-bold">{signalsSummary.averageConfidence.toFixed(0)}%</p>
+                  <p className="text-2xl font-bold">
+                    {signalsSummary.averageConfidence != null && typeof signalsSummary.averageConfidence === 'number' ? `${signalsSummary.averageConfidence.toFixed(0)}%` : '0%'}
+                  </p>
                 </div>
               </div>
             </CardContent>

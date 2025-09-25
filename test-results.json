@@ -1,0 +1,99 @@
+{
+  "timestamp": "2025-09-22T14:29:36.297Z",
+  "summary": {
+    "total": 19,
+    "passed": 19,
+    "failed": 0
+  },
+  "successRate": "100.00%",
+  "details": {
+    "apiTests": [],
+    "frontendTests": [
+      {
+        "test": "Frontend Access",
+        "success": true,
+        "status": 200
+      }
+    ],
+    "integrationTests": [
+      {
+        "test": "File Structure - src/components/StockAnalysis.tsx",
+        "success": true
+      },
+      {
+        "test": "File Structure - src/components/TradingSignals.tsx",
+        "success": true
+      },
+      {
+        "test": "File Structure - src/components/RiskAnalysisCard.tsx",
+        "success": true
+      },
+      {
+        "test": "File Structure - src/components/StockChart.tsx",
+        "success": true
+      },
+      {
+        "test": "File Structure - src/components/StockDataCard.tsx",
+        "success": true
+      },
+      {
+        "test": "File Structure - src/components/StockSearch.tsx",
+        "success": true
+      },
+      {
+        "test": "File Structure - src/components/Calculator.tsx",
+        "success": true
+      },
+      {
+        "test": "File Structure - src/hooks/useMarketSentiment.ts",
+        "success": true
+      },
+      {
+        "test": "File Structure - src/hooks/useRiskAnalysis.ts",
+        "success": true
+      },
+      {
+        "test": "File Structure - src/hooks/useTradingSignals.ts",
+        "success": true
+      },
+      {
+        "test": "File Structure - src/hooks/useAIPatterns.ts",
+        "success": true
+      },
+      {
+        "test": "File Structure - src/hooks/useAdvancedPatterns.ts",
+        "success": true
+      },
+      {
+        "test": "File Structure - src/hooks/usePatternRecognition.ts",
+        "success": true
+      },
+      {
+        "test": "File Structure - src/hooks/useTheme.ts",
+        "success": true
+      },
+      {
+        "test": "File Structure - src/utils/financialCalculations.ts",
+        "success": true
+      },
+      {
+        "test": "File Structure - src/utils/dataMapping.ts",
+        "success": true
+      },
+      {
+        "test": "File Structure - api/routes/stocks.ts",
+        "success": true
+      },
+      {
+        "test": "File Structure - api/services/financialCalculator.ts",
+        "success": true
+      }
+    ],
+    "errors": [],
+    "summary": {
+      "total": 19,
+      "passed": 19,
+      "failed": 0
+    }
+  }
+}

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import logger from '../utils/logger.js';
+import logger from '../utils/logger';
 
 // In-memory cache implementation
 interface CacheEntry {
@@ -11,6 +11,8 @@ interface CacheEntry {
 class MemoryCache {
   private cache: Map<string, CacheEntry> = new Map();
   private cleanupInterval: NodeJS.Timeout;
+  private hits: number = 0;
+  private misses: number = 0;
 
   constructor() {
     // Cleanup expired entries every 5 minutes
@@ -32,16 +34,19 @@ class MemoryCache {
   get(key: string): unknown | null {
     const entry = this.cache.get(key);
     if (!entry) {
+      this.misses++;
       return null;
     }
 
     const now = Date.now();
     if (now - entry.timestamp > entry.ttl) {
       this.cache.delete(key);
+      this.misses++;
       logger.info(`Cache expired: ${key}`);
       return null;
     }
 
+    this.hits++;
     logger.info(`Cache hit: ${key}`);
     return entry.data;
   }
@@ -75,11 +80,17 @@ class MemoryCache {
     }
   }
 
-  getStats(): { size: number; keys: string[] } {
+  getStats(): { size: number; keys: string[]; hits: number; misses: number } {
     return {
       size: this.cache.size,
-      keys: Array.from(this.cache.keys())
+      keys: Array.from(this.cache.keys()),
+      hits: this.hits,
+      misses: this.misses
     };
+  }
+
+  getAllKeys(): string[] {
+    return Array.from(this.cache.keys());
   }
 
   destroy(): void {
@@ -129,14 +140,14 @@ export function createCacheMiddleware(ttlSeconds: number = 300) {
   };
 }
 
-// Stock data cache middleware (longer TTL)
-export const stockDataCache = createCacheMiddleware(600); // 10 minutes
+// Stock data cache middleware (short TTL for real-time data)
+export const stockDataCache = createCacheMiddleware(120); // 2 minutes (gerçek zamanlı veri için kısaltıldı)
 
-// Financial analysis cache middleware (shorter TTL)
-export const analysisCache = createCacheMiddleware(300); // 5 minutes
+// Financial analysis cache middleware (longer TTL)
+export const analysisCache = createCacheMiddleware(900); // 15 minutes (30'dan düşürüldü)
 
 // Price data cache middleware (very short TTL)
-export const priceCache = createCacheMiddleware(60); // 1 minute
+export const priceCache = createCacheMiddleware(60); // 1 minute (gerçek zamanlı fiyat için)
 
 // Cache invalidation middleware
 export function invalidateCache(pattern?: string) {

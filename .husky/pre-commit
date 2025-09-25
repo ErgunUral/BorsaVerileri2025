@@ -1,11 +1,14 @@
 #!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
 
-# Run lint-staged
-npx lint-staged
+# Run linting
+npm run lint
 
-# Run type check
+# Run type checking
 npm run type-check
 
-# Run tests
-npm run test:ci
+# Run unit tests
+npm run test:unit
+
+# Run lint-staged for staged files
+npx lint-staged

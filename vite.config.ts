@@ -58,7 +58,10 @@ export default defineConfig({
       'date-fns',
       'zustand',
       'react-query',
-      'react-router-dom'
+      'react-router-dom',
+      '@radix-ui/react-tabs',
+      '@radix-ui/react-progress',
+      '@radix-ui/react-slot'
     ],
     exclude: ['@vite/client', '@vite/env']
   },
@@ -68,7 +71,7 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:9876',
+        target: 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
         ws: true

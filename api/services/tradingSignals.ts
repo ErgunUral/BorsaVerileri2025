@@ -74,20 +74,34 @@ interface TradingRecommendation {
 }
 
 class TradingSignalsService {
-  private openai: OpenAI;
+  private openai: OpenAI | null;
   private readonly MODEL = 'gpt-4';
   private readonly MAX_TOKENS = 2000;
+  private readonly isApiKeyConfigured: boolean;
 
   constructor() {
-    this.openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY
-    });
+    const apiKey = process.env.OPENAI_API_KEY;
+    this.isApiKeyConfigured = !!(apiKey && apiKey !== 'your-openai-api-key-here');
+    
+    if (this.isApiKeyConfigured) {
+      this.openai = new OpenAI({
+        apiKey: apiKey
+      });
+    } else {
+      this.openai = null;
+      console.warn('OpenAI API key not configured. Trading signals will use fallback logic.');
+    }
   }
 
   // Ana trading sinyali üretme fonksiyonu
   async generateTradingSignal(symbol: string, marketData: MarketData, portfolioContext?: PortfolioContext): Promise<TradingSignal> {
     try {
       logger.info('Generating trading signal', { symbol, marketData: { price: marketData.currentPrice, volume: marketData.volume } });
+
+      // OpenAI kullanılamıyorsa fallback logic kullan
+      if (!this.isApiKeyConfigured || !this.openai) {
+        return this.generateFallbackSignal(symbol, marketData, portfolioContext);
+      }
 
       const prompt = this.buildTradingPrompt(symbol, marketData, portfolioContext);
       
@@ -123,7 +137,8 @@ class TradingSignalsService {
       return signal;
     } catch (error) {
       logger.error('Error generating trading signal', error as Error, { symbol });
-      throw new Error('Trading sinyali üretilemedi');
+      // OpenAI hatası durumunda fallback kullan
+      return this.generateFallbackSignal(symbol, marketData, portfolioContext);
     }
   }
 
@@ -160,12 +175,20 @@ class TradingSignalsService {
 
   // Portföy bazlı kapsamlı öneri
   async generatePortfolioRecommendation(portfolioContext: PortfolioContext, marketDataMap: Map<string, MarketData>): Promise<TradingRecommendation> {
+    let signals: TradingSignal[] = [];
+    
     try {
       logger.info('Generating portfolio recommendation', { portfolioValue: portfolioContext.totalValue });
 
       // Mevcut pozisyonlar için sinyaller
       const positionSymbols = portfolioContext.positions.map(p => p.symbol);
-      const signals = await this.generateMultipleSignals(positionSymbols, marketDataMap, portfolioContext);
+      signals = await this.generateMultipleSignals(positionSymbols, marketDataMap, portfolioContext);
+
+      // OpenAI kullanılamıyorsa fallback kullan
+      if (!this.openai) {
+        logger.warn('OpenAI not available, using fallback portfolio recommendation');
+        return this.generateFallbackPortfolioRecommendation(portfolioContext, signals, marketDataMap);
+      }
 
       // Portföy analizi için AI prompt
       const portfolioPrompt = this.buildPortfolioPrompt(portfolioContext, signals, marketDataMap);
@@ -201,7 +224,8 @@ class TradingSignalsService {
       return recommendation;
     } catch (error) {
       logger.error('Error generating portfolio recommendation', error as Error);
-      throw new Error('Portföy önerisi üretilemedi');
+      // OpenAI hatası durumunda fallback kullan
+      return this.generateFallbackPortfolioRecommendation(portfolioContext, signals, marketDataMap);
     }
   }
 
@@ -429,6 +453,153 @@ Lütfen bu verileri analiz ederek aşağıdaki JSON formatında bir trading siny
         generatedAt: new Date().toISOString()
       };
     }
+  }
+
+  // Fallback sinyal üretme (OpenAI olmadan)
+  private generateFallbackSignal(symbol: string, marketData: MarketData, portfolioContext?: PortfolioContext): TradingSignal {
+    const { currentPrice, changePercent, technicalIndicators } = marketData;
+    
+    let action: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
+    let strength: 'WEAK' | 'MODERATE' | 'STRONG' = 'WEAK';
+    let confidence = 40;
+    let reasoning = 'Basit teknik analiz (OpenAI kullanılamıyor)';
+    const technicalFactors: string[] = [];
+    
+    // Basit RSI analizi
+    if (technicalIndicators.rsi) {
+      if (technicalIndicators.rsi < 30) {
+        action = 'BUY';
+        confidence += 15;
+        technicalFactors.push('RSI oversold');
+      } else if (technicalIndicators.rsi > 70) {
+        action = 'SELL';
+        confidence += 15;
+        technicalFactors.push('RSI overbought');
+      }
+    }
+    
+    // Günlük değişim analizi
+    if (Math.abs(changePercent) > 5) {
+      if (changePercent > 5) {
+        if (action !== 'SELL') action = 'HOLD'; // Aşırı yükseliş, dikkatli ol
+        technicalFactors.push('Güçlü yükseliş');
+      } else {
+        if (action !== 'BUY') action = 'HOLD'; // Aşırı düşüş, dikkatli ol
+        technicalFactors.push('Güçlü düşüş');
+      }
+    }
+    
+    // SMA analizi
+    if (technicalIndicators.sma20 && technicalIndicators.sma50) {
+      if (currentPrice > technicalIndicators.sma20 && technicalIndicators.sma20 > technicalIndicators.sma50) {
+        if (action === 'HOLD') action = 'BUY';
+        confidence += 10;
+        technicalFactors.push('Fiyat SMA üzerinde');
+      } else if (currentPrice < technicalIndicators.sma20 && technicalIndicators.sma20 < technicalIndicators.sma50) {
+        if (action === 'HOLD') action = 'SELL';
+        confidence += 10;
+        technicalFactors.push('Fiyat SMA altında');
+      }
+    }
+    
+    // Güven seviyesini ayarla
+    confidence = Math.min(confidence, 60); // Fallback max %60 güven
+    
+    if (action !== 'HOLD') {
+      strength = confidence > 50 ? 'MODERATE' : 'WEAK';
+    }
+    
+    return {
+      symbol,
+      action,
+      strength,
+      confidence,
+      price: currentPrice,
+      targetPrice: action === 'BUY' ? currentPrice * 1.05 : action === 'SELL' ? currentPrice * 0.95 : undefined,
+      stopLoss: action === 'BUY' ? currentPrice * 0.95 : action === 'SELL' ? currentPrice * 1.05 : undefined,
+      timeframe: '1W',
+      reasoning,
+      technicalFactors,
+      fundamentalFactors: [],
+      riskLevel: 'MEDIUM',
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  // Fallback portföy önerisi (OpenAI olmadan)
+  private generateFallbackPortfolioRecommendation(portfolioContext: PortfolioContext, signals: TradingSignal[], marketDataMap: Map<string, MarketData>): TradingRecommendation {
+    const { totalValue, availableCash, positions, riskTolerance } = portfolioContext;
+    
+    // Basit portföy analizi
+    let totalPnL = 0;
+    let winningPositions = 0;
+    let losingPositions = 0;
+    
+    positions.forEach(position => {
+      const marketData = marketDataMap.get(position.symbol);
+      if (marketData) {
+        const pnl = (marketData.currentPrice - position.avgPrice) * position.quantity;
+        totalPnL += pnl;
+        if (pnl > 0) winningPositions++;
+        else if (pnl < 0) losingPositions++;
+      }
+    });
+    
+    const totalPnLPercent = (totalPnL / totalValue) * 100;
+    
+    // Basit piyasa duyarlılığı
+    let bullishSignals = 0;
+    let bearishSignals = 0;
+    signals.forEach(signal => {
+      if (signal.action === 'BUY') bullishSignals++;
+      else if (signal.action === 'SELL') bearishSignals++;
+    });
+    
+    const sentiment = bullishSignals > bearishSignals ? 'BULLISH' : bearishSignals > bullishSignals ? 'BEARISH' : 'NEUTRAL';
+    
+    // Basit öneriler
+    const recommendations: string[] = [];
+    
+    if (totalPnLPercent < -10) {
+      recommendations.push('Portföyünüzde %10\'dan fazla kayıp var, risk yönetimini gözden geçirin');
+    }
+    
+    if (availableCash / totalValue > 0.3) {
+      recommendations.push('Yüksek nakit oranınız var, değerlendirme fırsatlarını araştırın');
+    }
+    
+    if (positions.length < 5 && riskTolerance !== 'CONSERVATIVE') {
+      recommendations.push('Portföy çeşitlendirmesi için daha fazla hisse ekleyebilirsiniz');
+    }
+    
+    if (recommendations.length === 0) {
+      recommendations.push('Mevcut portföy dengesi makul görünüyor');
+    }
+    
+    return {
+      signals,
+      marketOutlook: {
+        sentiment: sentiment as 'BULLISH' | 'BEARISH' | 'NEUTRAL',
+        confidence: 45, // Fallback düşük güven
+        keyFactors: ['Basit teknik analiz', 'Portföy performansı'],
+        timeframe: '1W'
+      },
+      riskAssessment: {
+        overallRisk: totalPnLPercent < -15 ? 'HIGH' : totalPnLPercent > 10 ? 'LOW' : 'MEDIUM',
+        diversificationScore: Math.min(positions.length * 20, 100),
+        recommendations
+      },
+      rebalancing: {
+        suggestedActions: signals.filter(s => s.action !== 'HOLD').map(s => ({
+          symbol: s.symbol,
+          action: s.action,
+          percentage: 5, // Basit %5 önerisi
+          reasoning: s.reasoning
+        })),
+        cashAllocation: Math.max(10, Math.min(30, availableCash / totalValue * 100))
+      },
+      timestamp: new Date().toISOString()
+    };
   }
 
   // Sinyal geçmişi ve performans takibi

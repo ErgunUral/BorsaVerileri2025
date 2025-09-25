@@ -50,7 +50,66 @@ router.post('/signal/:symbol', async (req, res) => {
   }
 });
 
-// Çoklu hisse için trading sinyalleri
+// Çoklu hisse için trading sinyalleri (GET version for frontend)
+router.get('/signals/multiple', async (req, res) => {
+  try {
+    const { symbols } = req.query;
+    
+    if (!symbols || typeof symbols !== 'string') {
+      return res.status(400).json({
+        error: 'Symbols query parameter is required (comma-separated)'
+      });
+    }
+    
+    const symbolArray = symbols.split(',').map(s => s.trim());
+    
+    // Mock market data for demo purposes (since we don't have real data in GET request)
+    const mockMarketData = new Map<string, MarketData>();
+    symbolArray.forEach(symbol => {
+      mockMarketData.set(symbol, {
+        currentPrice: 100 + Math.random() * 50,
+        volume: Math.floor(Math.random() * 1000000),
+        change: (Math.random() - 0.5) * 10,
+        changePercent: (Math.random() - 0.5) * 10,
+        technicalIndicators: {
+          rsi: 30 + Math.random() * 40,
+          sma20: 95 + Math.random() * 10,
+          sma50: 90 + Math.random() * 20
+        }
+      });
+    });
+    
+    const signals = await tradingService.generateMultipleSignals(symbolArray, mockMarketData);
+    
+    res.json({
+      success: true,
+      data: {
+        signals: signals.map(signal => ({ signal, positionSizing: null })),
+        summary: {
+          totalSignals: signals.length,
+          buySignals: signals.filter(s => s.action === 'BUY').length,
+          sellSignals: signals.filter(s => s.action === 'SELL').length,
+          holdSignals: signals.filter(s => s.action === 'HOLD').length,
+          averageConfidence: signals.reduce((sum, s) => sum + s.confidence, 0) / signals.length
+        }
+      }
+    });
+    
+    logger.info('Multiple trading signals generated via GET API', { 
+      symbolCount: symbolArray.length,
+      signalCount: signals.length
+    });
+    
+  } catch (error) {
+    logger.error('Error in GET multiple trading signals API', error as Error);
+    res.status(500).json({
+      error: 'Toplu trading sinyalleri üretilemedi',
+      message: (error as Error).message
+    });
+  }
+});
+
+// Çoklu hisse için trading sinyalleri (POST version)
 router.post('/signals/multiple', async (req, res) => {
   try {
     const { symbols, marketDataMap, portfolioContext } = req.body;
@@ -208,7 +267,108 @@ router.get('/performance/:symbol', async (req, res) => {
   }
 });
 
-// Piyasa sentiment analizi
+// Piyasa sentiment analizi (GET version for frontend)
+router.get('/market/sentiment', async (req, res) => {
+  try {
+    const { symbols } = req.query;
+    
+    if (!symbols || typeof symbols !== 'string') {
+      return res.status(400).json({
+        error: 'Symbols query parameter is required (comma-separated)'
+      });
+    }
+    
+    const symbolArray = symbols.split(',').map(s => s.trim());
+    
+    // Mock market data for demo purposes
+    const mockMarketData = new Map<string, MarketData>();
+    symbolArray.forEach(symbol => {
+      mockMarketData.set(symbol, {
+        currentPrice: 100 + Math.random() * 50,
+        volume: Math.floor(Math.random() * 1000000),
+        change: (Math.random() - 0.5) * 10,
+        changePercent: (Math.random() - 0.5) * 10,
+        technicalIndicators: {
+          rsi: 30 + Math.random() * 40,
+          sma20: 95 + Math.random() * 10,
+          sma50: 90 + Math.random() * 20
+        }
+      });
+    });
+    
+    // Tüm hisseler için sinyal üret
+    const signals = await tradingService.generateMultipleSignals(symbolArray, mockMarketData);
+    
+    // Sentiment analizi
+    const bullishCount = signals.filter(s => s.action === 'BUY').length;
+    const bearishCount = signals.filter(s => s.action === 'SELL').length;
+    const neutralCount = signals.filter(s => s.action === 'HOLD').length;
+    
+    const totalSignals = signals.length;
+    const bullishPercentage = (bullishCount / totalSignals) * 100;
+    const bearishPercentage = (bearishCount / totalSignals) * 100;
+    
+    let overallSentiment: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+    if (bullishPercentage > 50) {
+      overallSentiment = 'BULLISH';
+    } else if (bearishPercentage > 40) {
+      overallSentiment = 'BEARISH';
+    } else {
+      overallSentiment = 'NEUTRAL';
+    }
+
+    // Güven seviyesi ortalaması
+    const averageConfidence = signals.reduce((sum, s) => sum + s.confidence, 0) / totalSignals;
+    
+    // En güçlü sinyaller
+    const strongSignals = signals
+      .filter(s => s.strength === 'STRONG' && s.confidence > 70)
+      .sort((a, b) => b.confidence - a.confidence)
+      .slice(0, 5);
+
+    res.json({
+      success: true,
+      data: {
+        overallSentiment,
+        confidence: Math.round(averageConfidence),
+        distribution: {
+          bullish: bullishCount,
+          bearish: bearishCount,
+          neutral: neutralCount,
+          bullishPercentage: Math.round(bullishPercentage),
+          bearishPercentage: Math.round(bearishPercentage)
+        },
+        strongSignals: strongSignals.map(s => ({
+          symbol: s.symbol,
+          action: s.action,
+          confidence: s.confidence,
+          reasoning: s.reasoning.substring(0, 100) + '...'
+        })),
+        marketFactors: {
+          volatilityLevel: 'MEDIUM',
+          trendDirection: overallSentiment,
+          riskLevel: averageConfidence > 70 ? 'LOW' : averageConfidence > 50 ? 'MEDIUM' : 'HIGH'
+        },
+        generatedAt: new Date().toISOString()
+      }
+    });
+
+    logger.info('Market sentiment analysis completed via GET API', { 
+      symbolCount: symbolArray.length,
+      sentiment: overallSentiment,
+      confidence: averageConfidence
+    });
+
+  } catch (error) {
+    logger.error('Error in GET market sentiment API', error as Error);
+    res.status(500).json({
+      error: 'Piyasa sentiment analizi yapılamadı',
+      message: (error as Error).message
+    });
+  }
+});
+
+// Piyasa sentiment analizi (POST version)
 router.post('/market/sentiment', async (req, res) => {
   try {
     const { symbols, marketDataMap } = req.body;
@@ -297,7 +457,191 @@ router.post('/market/sentiment', async (req, res) => {
   }
 });
 
-// Risk analizi endpoint'i
+// Portföy önerisi (GET version for frontend)
+router.get('/portfolio/recommendation', async (req, res) => {
+  try {
+    const { symbols, riskTolerance = 'MEDIUM', investmentAmount = '10000' } = req.query;
+    
+    if (!symbols || typeof symbols !== 'string') {
+      return res.status(400).json({
+        error: 'Symbols query parameter is required (comma-separated)'
+      });
+    }
+    
+    const symbolArray = symbols.split(',').map(s => s.trim());
+    const amount = parseFloat(investmentAmount as string) || 10000;
+    
+    // Mock market data for demo purposes
+    const mockMarketData = new Map<string, MarketData>();
+    symbolArray.forEach(symbol => {
+      mockMarketData.set(symbol, {
+        currentPrice: 100 + Math.random() * 50,
+        volume: Math.floor(Math.random() * 1000000),
+        change: (Math.random() - 0.5) * 10,
+        changePercent: (Math.random() - 0.5) * 10,
+        technicalIndicators: {
+          rsi: 30 + Math.random() * 40,
+          sma20: 95 + Math.random() * 10,
+          sma50: 90 + Math.random() * 20
+        }
+      });
+    });
+    
+    // Create a mock portfolio context for the GET request
+    const mockPortfolioContext = {
+      totalValue: amount,
+      availableCash: amount * 0.2, // 20% cash
+      riskTolerance: riskTolerance as 'LOW' | 'MEDIUM' | 'HIGH',
+      investmentGoal: 'GROWTH',
+      positions: symbolArray.map((symbol, index) => ({
+        symbol,
+        quantity: Math.floor((amount * 0.8) / symbolArray.length / (mockMarketData.get(symbol)?.currentPrice || 100)),
+        avgPrice: (mockMarketData.get(symbol)?.currentPrice || 100) * (0.9 + Math.random() * 0.2), // Random entry price
+        currentValue: 0 // Will be calculated
+      }))
+    };
+    
+    // Calculate current values for positions
+    mockPortfolioContext.positions.forEach(position => {
+      const currentPrice = mockMarketData.get(position.symbol)?.currentPrice || 100;
+      position.currentValue = position.quantity * currentPrice;
+    });
+    
+    const recommendation = await tradingService.generatePortfolioRecommendation(
+      mockPortfolioContext,
+      mockMarketData
+    );
+    
+    res.json({
+      success: true,
+      data: recommendation
+    });
+    
+    logger.info('Portfolio recommendation generated via GET API', { 
+      symbolCount: symbolArray.length,
+      riskTolerance,
+      investmentAmount: amount
+    });
+    
+  } catch (error) {
+    logger.error('Error in GET portfolio recommendation API', error as Error);
+    res.status(500).json({
+      error: 'Portföy önerisi üretilemedi',
+      message: (error as Error).message
+    });
+  }
+});
+
+// Risk analizi (GET version for frontend)
+router.get('/risk/analysis', async (req, res) => {
+  try {
+    const { symbols, portfolioValue = '100000' } = req.query;
+    
+    if (!symbols || typeof symbols !== 'string') {
+      return res.status(400).json({
+        error: 'Symbols query parameter is required (comma-separated)'
+      });
+    }
+    
+    const symbolArray = symbols.split(',').map(s => s.trim());
+    const totalValue = parseFloat(portfolioValue as string) || 100000;
+    
+    // Mock market data for demo purposes
+    const mockMarketData = new Map<string, MarketData>();
+    symbolArray.forEach(symbol => {
+      mockMarketData.set(symbol, {
+        currentPrice: 100 + Math.random() * 50,
+        volume: Math.floor(Math.random() * 1000000),
+        change: (Math.random() - 0.5) * 10,
+        changePercent: (Math.random() - 0.5) * 10,
+        technicalIndicators: {
+          rsi: 30 + Math.random() * 40,
+          sma20: 95 + Math.random() * 10,
+          sma50: 90 + Math.random() * 20
+        }
+      });
+    });
+    
+    // Tüm hisseler için sinyal üret
+    const signals = await tradingService.generateMultipleSignals(symbolArray, mockMarketData);
+    
+    // Risk analizi hesaplamaları
+    const highRiskSignals = signals.filter(s => s.confidence < 60).length;
+    const mediumRiskSignals = signals.filter(s => s.confidence >= 60 && s.confidence < 80).length;
+    const lowRiskSignals = signals.filter(s => s.confidence >= 80).length;
+    
+    const averageConfidence = signals.reduce((sum, s) => sum + s.confidence, 0) / signals.length;
+    
+    // Portföy risk seviyesi
+    let portfolioRiskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+    if (averageConfidence >= 75) {
+      portfolioRiskLevel = 'LOW';
+    } else if (averageConfidence >= 60) {
+      portfolioRiskLevel = 'MEDIUM';
+    } else {
+      portfolioRiskLevel = 'HIGH';
+    }
+    
+    // Volatilite analizi
+    const volatilityScores = symbolArray.map(symbol => {
+      const data = mockMarketData.get(symbol)!;
+      return Math.abs(data.changePercent);
+    });
+    const averageVolatility = volatilityScores.reduce((sum, v) => sum + v, 0) / volatilityScores.length;
+    
+    // Risk önerileri
+    const recommendations = [];
+    if (portfolioRiskLevel === 'HIGH') {
+      recommendations.push('Portföyünüzde yüksek riskli pozisyonlar mevcut. Pozisyon boyutlarını azaltmayı düşünün.');
+    }
+    if (averageVolatility > 5) {
+      recommendations.push('Yüksek volatilite tespit edildi. Stop-loss seviyelerini gözden geçirin.');
+    }
+    if (highRiskSignals > symbolArray.length * 0.3) {
+      recommendations.push('Portföyünüzün %30\'undan fazlası yüksek riskli. Diversifikasyonu artırın.');
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        overallRiskLevel: portfolioRiskLevel,
+        riskScore: Math.round(100 - averageConfidence),
+        portfolioValue: totalValue,
+        riskDistribution: {
+          low: lowRiskSignals,
+          medium: mediumRiskSignals,
+          high: highRiskSignals
+        },
+        volatilityAnalysis: {
+          averageVolatility: Math.round(averageVolatility * 100) / 100,
+          volatilityLevel: averageVolatility > 7 ? 'HIGH' : averageVolatility > 4 ? 'MEDIUM' : 'LOW'
+        },
+        recommendations,
+        riskMetrics: {
+          confidenceLevel: Math.round(averageConfidence),
+          diversificationScore: Math.min(100, (symbolArray.length / 10) * 100),
+          liquidityRisk: 'LOW' // Mock değer
+        },
+        generatedAt: new Date().toISOString()
+      }
+    });
+    
+    logger.info('Risk analysis completed via GET API', { 
+      symbolCount: symbolArray.length,
+      riskLevel: portfolioRiskLevel,
+      riskScore: 100 - averageConfidence
+    });
+    
+  } catch (error) {
+    logger.error('Error in GET risk analysis API', error as Error);
+    res.status(500).json({
+      error: 'Risk analizi yapılamadı',
+      message: (error as Error).message
+    });
+  }
+});
+
+// Risk analizi (POST version)
 router.post('/risk/analysis', async (req, res) => {
   try {
     const { portfolioContext, marketDataMap } = req.body;

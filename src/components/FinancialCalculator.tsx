@@ -1,12 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Calculator, RefreshCw, AlertTriangle, Settings } from 'lucide-react';
 
-interface FinancialDataField {
-  key: string;
-  label: string;
-  description: string;
-  category: 'assets' | 'liabilities' | 'equity' | 'performance';
-}
+// interface FinancialDataField {
+//   key: string;
+//   label: string;
+//   description: string;
+//   category: 'assets' | 'liabilities' | 'equity' | 'performance';
+// }
 
 interface CalculationResult {
   name: string;
@@ -48,29 +48,16 @@ const FinancialCalculator: React.FC<FinancialCalculatorProps> = ({
   financialData, 
   onCalculationComplete 
 }) => {
-  // Finansal veri alanları tanımı
-  const financialDataFields: FinancialDataField[] = [
-    { key: 'currentAssets', label: 'Dönen Varlıklar', description: 'Bir yıl içinde nakde çevrilebilir varlıklar', category: 'assets' },
-    { key: 'shortTermLiabilities', label: 'Kısa Vadeli Yükümlülükler', description: 'Bir yıl içinde ödenecek borçlar', category: 'liabilities' },
-    { key: 'longTermLiabilities', label: 'Uzun Vadeli Yükümlülükler', description: 'Bir yıldan uzun vadeli borç ve yükümlülükler', category: 'liabilities' },
-    { key: 'cashAndEquivalents', label: 'Nakit ve Nakit Benzerleri', description: 'Eldeki nakit ve hemen nakde çevrilebilir varlıklar', category: 'assets' },
-    { key: 'financialInvestments', label: 'Finansal Yatırımlar', description: 'Menkul kıymet ve diğer finansal yatırımlar', category: 'assets' },
-    { key: 'financialDebts', label: 'Finansal Borçlar', description: 'Banka kredileri ve finansal yükümlülükler', category: 'liabilities' },
-    { key: 'totalAssets', label: 'Toplam Varlıklar', description: 'Şirketin sahip olduğu tüm varlıklar', category: 'assets' },
-    { key: 'totalLiabilities', label: 'Toplam Yükümlülükler', description: 'Şirketin tüm borç ve yükümlülükleri', category: 'liabilities' },
-    { key: 'ebitda', label: 'FAVÖK', description: 'Faiz, vergi, amortisman öncesi kar', category: 'performance' },
-    { key: 'netProfit', label: 'Net Dönem Karı/Zararı', description: 'Dönem sonunda kalan net kar veya zarar', category: 'performance' },
-    { key: 'equity', label: 'Özkaynaklar', description: 'Şirket sahiplerinin net varlığı', category: 'equity' },
-    { key: 'paidCapital', label: 'Ödenmiş Sermaye', description: 'Şirkete ödenmiş sermaye tutarı', category: 'equity' }
-  ];
+  // Finansal veri alanları tanımı - commented out as not used
+  // const financialDataFields: FinancialDataField[] = [...]
 
   // State tanımları
-  const [selectedFields, setSelectedFields] = useState<string[]>([]);
+  // const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [showCalculator, setShowCalculator] = useState(false);
   const [calculationType, setCalculationType] = useState<'ratios' | 'custom'>('ratios');
   const [lastCalculationTime, setLastCalculationTime] = useState<Date | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string>('Tümü');
+  // const [selectedCategory, setSelectedCategory] = useState<string>('Tümü');
   
   // Hesap makinesi state'leri
   const [calculatorState, setCalculatorState] = useState<CalculatorState>({
@@ -82,11 +69,11 @@ const FinancialCalculator: React.FC<FinancialCalculatorProps> = ({
     history: [],
     selectedFields: []
   });
-  const [showCustomCalculator, setShowCustomCalculator] = useState(false);
+  // const [showCustomCalculator, setShowCustomCalculator] = useState(false);
 
   // Gerçek zamanlı hesaplama güncellemesi
   useEffect(() => {
-    if (selectedFields.length > 0 || calculationType === 'ratios') {
+    if (calculationType === 'ratios') {
       setIsCalculating(true);
       const timer = setTimeout(() => {
         setLastCalculationTime(new Date());
@@ -96,7 +83,7 @@ const FinancialCalculator: React.FC<FinancialCalculatorProps> = ({
       return () => clearTimeout(timer);
     }
     return undefined;
-  }, [selectedFields, calculationType, financialData]);
+  }, [calculationType, financialData]);
 
   // Otomatik hesaplama fonksiyonları
   const calculateFinancialRatios = useMemo((): CalculationResult[] => {

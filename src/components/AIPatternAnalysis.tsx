@@ -46,10 +46,8 @@ const AIPatternAnalysis: React.FC<AIPatternAnalysisProps> = ({
     getSignals,
     getComprehensiveAnalysis,
     clearError,
-    activePatterns,
     highConfidencePatterns,
-    currentFormations,
-    tradingRecommendation
+    currentFormations
   } = useAIPatterns();
 
   const [activeTab, setActiveTab] = useState('comprehensive');
@@ -235,7 +233,7 @@ const AIPatternAnalysis: React.FC<AIPatternAnalysisProps> = ({
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     {comprehensiveAnalysis.analysis.keyFactors.map((factor, index) => (
-                      <div key={index} className="flex items-center space-x-2">
+                      <div key={`factor-${index}`} className="flex items-center space-x-2">
                         <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
                         <span className="text-sm text-gray-700">{factor}</span>
                       </div>
@@ -274,27 +272,27 @@ const AIPatternAnalysis: React.FC<AIPatternAnalysisProps> = ({
               {patterns.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {patterns.map((pattern) => (
-                    <Card key={pattern.id}>
+                    <Card key={pattern.id || `pattern-${pattern.type}-${Math.random()}`}>
                       <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium flex items-center justify-between">
                           <div className="flex items-center">
                             {getPatternIcon(pattern.type)}
-                            <span className="ml-2">{pattern.type.replace('_', ' ')}</span>
+                            <span className="ml-2">{pattern.type ? pattern.type.replace('_', ' ') : 'Unknown Pattern'}</span>
                           </div>
-                          <Badge className={getConfidenceColor(pattern.confidence)}>
-                            {pattern.confidence}%
+                          <Badge className={getConfidenceColor(pattern.confidence || 0)}>
+                            {pattern.confidence || 0}%
                           </Badge>
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <p className="text-sm text-gray-600 mb-2">{pattern.description}</p>
+                        <p className="text-sm text-gray-600 mb-2">{pattern.description || 'No description available'}</p>
                         <div className="space-y-1 text-xs text-gray-500">
-                          <div>Period: {pattern.startDate} - {pattern.endDate}</div>
+                          <div>Period: {pattern.startDate || 'N/A'} - {pattern.endDate || 'N/A'}</div>
                           {pattern.targetPrice && (
-                            <div>Target: ${pattern.targetPrice.toFixed(2)}</div>
+                            <div>Target: ${(pattern.targetPrice || 0).toFixed(2)}</div>
                           )}
                           {pattern.stopLoss && (
-                            <div>Stop Loss: ${pattern.stopLoss.toFixed(2)}</div>
+                            <div>Stop Loss: ${(pattern.stopLoss || 0).toFixed(2)}</div>
                           )}
                         </div>
                       </CardContent>
@@ -330,23 +328,23 @@ const AIPatternAnalysis: React.FC<AIPatternAnalysisProps> = ({
                   {currentFormations.length > 0 ? (
                     <div className="space-y-3">
                       {currentFormations.map((formation) => (
-                        <div key={formation.id} className="border rounded-lg p-3">
+                        <div key={formation.id || `formation-${formation.type}-${Math.random()}`} className="border rounded-lg p-3">
                           <div className="flex items-center justify-between mb-2">
-                            <span className="font-medium">{formation.type}</span>
+                            <span className="font-medium">{formation.type || 'Unknown Formation'}</span>
                             <Badge 
-                              variant={formation.stage === 'CONFIRMED' ? 'default' : 'outline'}
+                              variant={(formation.stage || '') === 'CONFIRMED' ? 'default' : 'outline'}
                             >
-                              {formation.stage}
+                              {formation.stage || 'Unknown'}
                             </Badge>
                           </div>
                           <div className="space-y-2">
                             <div className="flex items-center justify-between text-sm">
                               <span>Progress</span>
-                              <span>{formation.progress}%</span>
+                              <span>{formation.progress || 0}%</span>
                             </div>
-                            <Progress value={formation.progress} className="h-2" />
+                            <Progress value={formation.progress || 0} className="h-2" />
                             <div className="text-xs text-gray-500">
-                              Est. Completion: {formation.estimatedCompletion}
+                              Est. Completion: {formation.estimatedCompletion || 'N/A'}
                             </div>
                           </div>
                         </div>
@@ -372,25 +370,25 @@ const AIPatternAnalysis: React.FC<AIPatternAnalysisProps> = ({
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="text-center">
                       <div className="text-2xl font-bold text-gray-900">
-                        {formations.statistics.totalFormations}
+                        {formations.statistics?.totalFormations || 0}
                       </div>
                       <div className="text-xs text-gray-500">Total</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-green-600">
-                        {formations.statistics.successRate}%
+                        {formations.statistics?.successRate || 0}%
                       </div>
                       <div className="text-xs text-gray-500">Success Rate</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-blue-600">
-                        {formations.statistics.averageAccuracy}%
+                        {formations.statistics?.averageAccuracy || 0}%
                       </div>
                       <div className="text-xs text-gray-500">Avg Accuracy</div>
                     </div>
                     <div className="text-center">
                       <div className="text-sm font-medium text-gray-900">
-                        {formations.statistics.bestPerformingPattern}
+                        {formations.statistics?.bestPerformingPattern || 'N/A'}
                       </div>
                       <div className="text-xs text-gray-500">Best Pattern</div>
                     </div>
@@ -423,12 +421,12 @@ const AIPatternAnalysis: React.FC<AIPatternAnalysisProps> = ({
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center justify-between mb-4">
-                    <Badge className={`${getSignalColor(signals.signal)} text-lg px-4 py-2`}>
-                      {signals.signal}
+                    <Badge className={`${getSignalColor(signals.signal || 'HOLD')} text-lg px-4 py-2`}>
+                      {signals.signal || 'HOLD'}
                     </Badge>
                     <div className="text-right">
                       <div className="text-sm text-gray-600">Strength</div>
-                      <div className="text-xl font-bold">{signals.strength}%</div>
+                      <div className="text-xl font-bold">{signals.strength || 0}%</div>
                     </div>
                   </div>
                   
@@ -438,15 +436,15 @@ const AIPatternAnalysis: React.FC<AIPatternAnalysisProps> = ({
                       <div className="space-y-1 text-sm">
                         <div className="flex justify-between">
                           <span>Conservative:</span>
-                          <span className="font-medium">${signals.priceTargets.conservative}</span>
+                          <span className="font-medium">${signals.priceTargets?.conservative || 'N/A'}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Moderate:</span>
-                          <span className="font-medium">${signals.priceTargets.moderate}</span>
+                          <span className="font-medium">${signals.priceTargets?.moderate || 'N/A'}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Aggressive:</span>
-                          <span className="font-medium">${signals.priceTargets.aggressive}</span>
+                          <span className="font-medium">${signals.priceTargets?.aggressive || 'N/A'}</span>
                         </div>
                       </div>
                     </div>
@@ -456,16 +454,16 @@ const AIPatternAnalysis: React.FC<AIPatternAnalysisProps> = ({
                       <div className="space-y-1 text-sm">
                         <div className="flex justify-between">
                           <span>Entry Price:</span>
-                          <span className="font-medium">${signals.entryPrice}</span>
+                          <span className="font-medium">${signals.entryPrice || 'N/A'}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Stop Loss:</span>
-                          <span className="font-medium text-red-600">${signals.stopLoss}</span>
+                          <span className="font-medium text-red-600">${signals.stopLoss || 'N/A'}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Risk Level:</span>
-                          <Badge className={getRiskColor(signals.riskLevel)}>
-                            {signals.riskLevel}
+                          <Badge className={getRiskColor(signals.riskLevel || 'MEDIUM')}>
+                            {signals.riskLevel || 'MEDIUM'}
                           </Badge>
                         </div>
                       </div>
@@ -481,8 +479,8 @@ const AIPatternAnalysis: React.FC<AIPatternAnalysisProps> = ({
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {signals.reasoning.map((reason, index) => (
-                      <div key={index} className="flex items-start space-x-2">
+                    {(signals.reasoning || []).map((reason, index) => (
+                      <div key={`reason-${index}`} className="flex items-start space-x-2">
                         <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
                         <span className="text-sm text-gray-700">{reason}</span>
                       </div>
