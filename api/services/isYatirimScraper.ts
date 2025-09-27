@@ -235,7 +235,7 @@ export class IsYatirimScraper {
               if (priceMatch) {
                 const priceStr = priceMatch[1].replace(',', '.');
                 const price = parseFloat(priceStr);
-                if (price && price > 0 && price < 50) { // ASELS reasonable range
+                if (price && price > 0 && price < 250) { // ASELS reasonable range (updated for current market price)
                   currentPrice = price;
                   logger.info(`  Extracted price: ${price} TL from "${match}"`);
                   break;
@@ -335,8 +335,8 @@ export class IsYatirimScraper {
 
   async scrapeStockPrice(stockCode: string): Promise<StockPrice | null> {
     try {
-      // ASELS ve ASLSN için veri çekme
-      const allowedStocks = ['ASELS', 'ASLSN'];
+      // ASELS, ASLSN ve BALSU için veri çekme
+      const allowedStocks = ['ASELS', 'ASLSN', 'BALSU'];
       if (!allowedStocks.includes(stockCode.toUpperCase())) {
         throw new Error(`Bu sistem sadece ${allowedStocks.join(', ')} hisseleri için veri sağlamaktadır. İstenen: ${stockCode}`);
       }
@@ -358,6 +358,14 @@ export class IsYatirimScraper {
           change: 0.85,
           changePercent: 2.12,
           volume: 850000,
+          lastUpdate: new Date().toISOString()
+        };
+      } else if (stockCode.toUpperCase() === 'BALSU') {
+        return {
+          current: 0.2,
+          change: 0,
+          changePercent: 0,
+          volume: 0,
           lastUpdate: new Date().toISOString()
         };
       } else {
@@ -399,8 +407,8 @@ export class IsYatirimScraper {
   }
 
   async scrapeFinancialData(stockCode: string, retries: number = 3): Promise<FinancialData> {
-    // ASELS ve ASLSN için veri çekme
-    const allowedStocks = ['ASELS', 'ASLSN'];
+    // ASELS, ASLSN ve BALSU için veri çekme
+    const allowedStocks = ['ASELS', 'ASLSN', 'BALSU'];
     if (!allowedStocks.includes(stockCode.toUpperCase())) {
       throw new Error(`Bu sistem sadece ${allowedStocks.join(', ')} hisseleri için veri sağlamaktadır. İstenen: ${stockCode}`);
     }
@@ -523,11 +531,11 @@ export class IsYatirimScraper {
    */
   async getHistoricalData(stockCode: string, days: number = 50): Promise<HistoricalPrice[]> {
     try {
-      // ASELS ve ASLSN için veri çekme
-      const allowedStocks = ['ASELS', 'ASLSN'];
-      if (!allowedStocks.includes(stockCode.toUpperCase())) {
-        throw new Error(`Bu sistem sadece ${allowedStocks.join(', ')} hisseleri için veri sağlamaktadır. İstenen: ${stockCode}`);
-      }
+      // ASELS, ASLSN ve BALSU için veri çekme
+    const allowedStocks = ['ASELS', 'ASLSN', 'BALSU'];
+    if (!allowedStocks.includes(stockCode.toUpperCase())) {
+      throw new Error(`Bu sistem sadece ${allowedStocks.join(', ')} hisseleri için veri sağlamaktadır. İstenen: ${stockCode}`);
+    }
 
       logger.info(`Fetching ${days} days of historical data for ${stockCode}`);
 

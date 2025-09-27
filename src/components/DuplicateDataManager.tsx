@@ -71,7 +71,7 @@ const DuplicateDataManager: React.FC<DuplicateDataManagerProps> = ({
 
   // Filtrelenmiş ve sıralanmış veriler
   const filteredAndSortedData = useMemo(() => {
-    let filtered = duplicates.filter(item => {
+    const filtered = duplicates.filter(item => {
       const matchesSearch = item.key.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            item.pattern.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            item.endpoint.toLowerCase().includes(searchTerm.toLowerCase());

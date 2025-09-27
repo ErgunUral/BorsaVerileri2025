@@ -36,37 +36,142 @@ const StockDetail: React.FC<StockDetailProps> = ({ stockData }) => {
 
   const { stockCode, companyName, price, analysis } = stockData;
 
-  // Fetch real-time price data from İş Yatırım API
+  // Fetch real-time price data from API
   useEffect(() => {
+    let isMounted = true;
+    let currentController: AbortController | null = null;
+    let retryTimeoutId: NodeJS.Timeout | null = null;
+    let intervalId: NodeJS.Timeout | null = null;
+    let retryCount = 0;
+    const maxRetries = 3;
+    const retryDelay = 2000;
+    
     const fetchRealTimePrice = async () => {
-      if (stockCode !== 'ASELS') return; // Only ASELS is supported for now
+      if (!isMounted) return;
       
-      setLoading(true);
-      setError(null);
+      // Cancel any existing request
+      if (currentController) {
+        currentController.abort();
+      }
+      
+      // Create new controller for this request
+      currentController = new AbortController();
       
       try {
-        const response = await fetch(`http://localhost:3001/api/stocks/price/${stockCode}`);
+        setLoading(true);
+        setError(null);
+        
+        const response = await fetch(`/api/stocks/data/${stockCode}`, {
+          signal: currentController.signal,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (!isMounted || currentController.signal.aborted) return;
+        
+        if (!response.ok) {
+          if (response.status === 404) {
+            throw new Error(`Hisse senedi bulunamadı: ${stockCode}`);
+          } else if (response.status === 429) {
+            throw new Error('Çok fazla istek gönderildi. Lütfen bekleyin.');
+          } else if (response.status >= 500) {
+            throw new Error('Sunucu hatası. Lütfen daha sonra tekrar deneyin.');
+          } else {
+            throw new Error(`HTTP hatası! Durum: ${response.status}`);
+          }
+        }
+        
         const data = await response.json();
         
-        if (data.success) {
-          setRealTimePrice(data.data);
+        if (!isMounted || currentController.signal.aborted) return;
+        
+        if (data.success && data.data) {
+          const priceData = {
+            price: data.data.price,
+            current: data.data.price,
+            changePercent: data.data.changePercent || 0,
+            volume: data.data.volume || 0
+          };
+          
+          setRealTimePrice(priceData);
+          setError(null);
+          retryCount = 0; // Reset retry count on success
         } else {
-          setError(data.error || 'Veri alınamadı');
+          throw new Error(data.error || 'Veri formatı hatalı');
         }
       } catch (err) {
-        setError('API bağlantı hatası');
-        console.error('Price fetch error:', err);
+        if (!isMounted || currentController?.signal.aborted) return;
+        
+        console.error('Error fetching real-time price:', err);
+        
+        let errorMessage = 'Bilinmeyen hata';
+        
+        if (err instanceof Error) {
+          if (err.name === 'AbortError') {
+            // Don't show error for aborted requests
+            return;
+          } else if (err.message.includes('Failed to fetch')) {
+            errorMessage = 'Ağ bağlantısı hatası. İnternet bağlantınızı kontrol edin.';
+          } else {
+            errorMessage = err.message;
+          }
+        }
+        
+        setError(errorMessage);
+        
+        // Retry logic
+        if (retryCount < maxRetries && err?.name !== 'AbortError' && isMounted) {
+          retryCount++;
+          console.log(`Retrying... Attempt ${retryCount}/${maxRetries}`);
+          retryTimeoutId = setTimeout(() => {
+            if (isMounted) {
+              fetchRealTimePrice();
+            }
+          }, retryDelay * retryCount);
+          return;
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
+        currentController = null;
       }
     };
 
-    fetchRealTimePrice();
+    if (stockCode) {
+      fetchRealTimePrice();
+      
+      // Set up interval for real-time updates
+      intervalId = setInterval(() => {
+        if (!loading && isMounted) {
+          fetchRealTimePrice();
+        }
+      }, 30000); // 30 seconds
+    }
     
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchRealTimePrice, 30000);
-    return () => clearInterval(interval);
-  }, [stockCode]);
+    // Cleanup function
+    return () => {
+      isMounted = false;
+      
+      // Cancel any ongoing request
+      if (currentController) {
+        currentController.abort();
+        currentController = null;
+      }
+      
+      // Clear timeouts and intervals
+      if (retryTimeoutId) {
+        clearTimeout(retryTimeoutId);
+        retryTimeoutId = null;
+      }
+      
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+  }, [stockCode]); // Removed loading dependency to prevent infinite loops
 
   // Use real-time price if available, otherwise fallback to prop data
   const currentPrice = realTimePrice || price;
@@ -156,7 +261,7 @@ const StockDetail: React.FC<StockDetailProps> = ({ stockData }) => {
                 currentPrice && currentPrice.changePercent >= 0 ? 'text-green-600' : 'text-red-600'
               }`}>
                 {loading ? 'Yükleniyor...' : 
-                 currentPrice ? `${formatPrice(currentPrice.current || currentPrice.price)} TL` : '0,00 TL'}
+                 currentPrice ? `${formatPrice(currentPrice.price)} TL` : '0,00 TL'}
               </div>
               <div className="flex items-center justify-end space-x-2 mt-1">
                 <span className={`text-lg font-medium ${
@@ -189,7 +294,7 @@ const StockDetail: React.FC<StockDetailProps> = ({ stockData }) => {
               <p className="text-sm text-gray-500">Fark</p>
               <p className="text-lg font-semibold text-gray-900">
                 {loading ? '...' :
-                 currentPrice ? formatPrice((currentPrice.current || currentPrice.price) * (currentPrice.changePercent / 100)) : '0,00'}
+                 currentPrice ? formatPrice(currentPrice.price * (currentPrice.changePercent / 100)) : '0,00'}
               </p>
             </div>
             <div>

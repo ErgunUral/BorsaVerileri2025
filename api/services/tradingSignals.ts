@@ -462,7 +462,7 @@ Lütfen bu verileri analiz ederek aşağıdaki JSON formatında bir trading siny
     let action: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
     let strength: 'WEAK' | 'MODERATE' | 'STRONG' = 'WEAK';
     let confidence = 40;
-    let reasoning = 'Basit teknik analiz (OpenAI kullanılamıyor)';
+    const reasoning = 'Basit teknik analiz (OpenAI kullanılamıyor)';
     const technicalFactors: string[] = [];
     
     // Basit RSI analizi

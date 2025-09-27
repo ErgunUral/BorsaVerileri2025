@@ -1,6 +1,60 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, TrendingUp, AlertCircle, Loader2 } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
+import { useToast } from '../hooks/useToast';
+
+// Throttling ve cache için utility fonksiyonlar
+const throttle = (func: Function, delay: number) => {
+  let timeoutId: NodeJS.Timeout | null = null;
+  let lastExecTime = 0;
+  return (...args: any[]) => {
+    const currentTime = Date.now();
+    
+    if (currentTime - lastExecTime > delay) {
+      func(...args);
+      lastExecTime = currentTime;
+    } else {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        func(...args);
+        lastExecTime = Date.now();
+      }, delay - (currentTime - lastExecTime));
+    }
+  };
+};
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Cache sistemi
+class ApiCache {
+  private cache = new Map<string, { data: any; timestamp: number; ttl: number }>();
+  
+  set(key: string, data: any, ttl: number = 900000) { // 15 dakika default TTL
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now(),
+      ttl
+    });
+  }
+  
+  get(key: string) {
+    const item = this.cache.get(key);
+    if (!item) return null;
+    
+    if (Date.now() - item.timestamp > item.ttl) {
+      this.cache.delete(key);
+      return null;
+    }
+    
+    return item.data;
+  }
+  
+  clear() {
+    this.cache.clear();
+  }
+}
+
+const apiCache = new ApiCache();
 
 interface StockData {
   stockCode: string;
@@ -34,6 +88,7 @@ const StockSearch: React.FC<StockSearchProps> = ({ onStockSelect }) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [popularStocks, setPopularStocks] = useState<string[]>([]);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const { success, error: showError, handleApiError } = useToast();
   
   const socketRef = useRef<Socket | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -45,10 +100,12 @@ const StockSearch: React.FC<StockSearchProps> = ({ onStockSelect }) => {
     
     socketRef.current.on('stock-data', (data: StockData) => {
       console.log('StockSearch - Socket\'ten gelen veri:', data);
+      console.log('StockSearch - Price objesi:', data.price);
       console.log('StockSearch - Finansal veriler:', data.analysis?.financialData);
       
       setIsLoading(false);
       setError(null);
+      success(`${data.stockCode} verisi başarıyla yüklendi`);
       onStockSelect(data);
       
       // Son aramaları güncelle
@@ -59,7 +116,9 @@ const StockSearch: React.FC<StockSearchProps> = ({ onStockSelect }) => {
     
     socketRef.current.on('stock-error', (error: { stockCode: string; error: string }) => {
       setIsLoading(false);
-      setError(`${error.stockCode}: ${error.error}`);
+      const errorMessage = `${error.stockCode}: ${error.error}`;
+      setError(errorMessage);
+      showError(errorMessage);
     });
     
     return () => {
@@ -69,28 +128,132 @@ const StockSearch: React.FC<StockSearchProps> = ({ onStockSelect }) => {
     };
   }, [onStockSelect, recentSearches]);
 
-  // Popüler hisseleri yükle
-  useEffect(() => {
-    const fetchPopularStocks = async () => {
-      try {
-        const response = await fetch('/api/stocks/popular');
-        if (response.ok) {
-          const data = await response.json();
-          setPopularStocks(data.stocks || []);
+  // Popüler hisseleri yükle - Cache ve retry logic ile optimize edilmiş
+  const fetchPopularStocksWithRetry = useCallback(async (retryCount = 0): Promise<void> => {
+    const cacheKey = 'popular-stocks';
+    const maxRetries = 2; // Retry sayısını azalt
+    const baseDelay = 2000; // 2 saniye base delay
+    
+    // Önce cache'den kontrol et
+    const cachedData = apiCache.get(cacheKey);
+    if (cachedData) {
+      setPopularStocks(cachedData);
+      return;
+    }
+    
+    try {
+      // Rate limiting için delay ekle - İyileştirilmiş exponential backoff
+      if (retryCount > 0) {
+        const delay = baseDelay * Math.pow(3, retryCount - 1); // Daha agresif backoff (3x)
+        console.log(`Rate limit retry ${retryCount}, waiting ${delay}ms`);
+        await sleep(delay);
+      }
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 saniye timeout
+      
+      const response = await fetch('/api/bulk/popular', {
+        signal: controller.signal,
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
         }
-      } catch (error) {
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        const data = await response.json();
+        let stocksToSet: string[];
+        
+        // API'den gelen veri yapısına göre popüler hisseleri çıkar
+        if (data.success && data.data) {
+          const successfulStocks = Object.keys(data.data.successful || {});
+          stocksToSet = successfulStocks.length > 0 ? successfulStocks : [
+            'AKBNK', 'GARAN', 'ISCTR', 'THYAO', 'BIMAS', 'ASELS', 'KCHOL',
+            'SAHOL', 'VAKBN', 'HALKB', 'EREGL', 'ARCLK', 'TUPRS', 'SISE'
+          ];
+        } else {
+          stocksToSet = [
+            'AKBNK', 'GARAN', 'ISCTR', 'THYAO', 'BIMAS', 'ASELS', 'KCHOL',
+            'SAHOL', 'VAKBN', 'HALKB', 'EREGL', 'ARCLK', 'TUPRS', 'SISE'
+          ];
+        }
+        
+        setPopularStocks(stocksToSet);
+        // Cache'e kaydet (15 dakika TTL)
+        apiCache.set(cacheKey, stocksToSet, 900000);
+        
+      } else if (response.status === 429 && retryCount < maxRetries) {
+        // Rate limiting durumunda retry - daha uzun bekleme
+        console.warn(`Rate limited, retrying... (${retryCount + 1}/${maxRetries})`);
+        await sleep(5000); // 5 saniye ekstra bekleme
+        return fetchPopularStocksWithRetry(retryCount + 1);
+      } else {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.warn('Popüler hisseler isteği zaman aşımına uğradı');
+      } else if (error.message.includes('429') && retryCount < maxRetries) {
+        console.warn(`Rate limited, retrying... (${retryCount + 1}/${maxRetries})`);
+        await sleep(5000); // 5 saniye ekstra bekleme
+        return fetchPopularStocksWithRetry(retryCount + 1);
+      } else {
         console.error('Popüler hisseler yüklenemedi:', error);
       }
-    };
-
-    fetchPopularStocks();
-    
-    // Son aramaları yükle
-    const savedSearches = localStorage.getItem('recentStockSearches');
-    if (savedSearches) {
-      setRecentSearches(JSON.parse(savedSearches));
+      
+      // Hata durumunda fallback liste kullan
+      const fallbackStocks = [
+        'AKBNK', 'GARAN', 'ISCTR', 'THYAO', 'BIMAS', 'ASELS', 'KCHOL',
+        'SAHOL', 'VAKBN', 'HALKB', 'EREGL', 'ARCLK', 'TUPRS', 'SISE'
+      ];
+      setPopularStocks(fallbackStocks);
+      
+      // Fallback'i de cache'e kaydet (daha kısa TTL)
+      apiCache.set(cacheKey, fallbackStocks, 300000); // 5 dakika TTL
+      
+      // Rate limiting durumunda kullanıcıya bilgi ver
+      if (error.message.includes('429')) {
+        if (retryCount === 0) {
+          setError('Çok fazla istek gönderildi. Lütfen birkaç saniye bekleyiniz...');
+        }
+      } else if (retryCount === 0) {
+        // Sadece gerçek hatalarda toast göster
+        handleApiError(error as Error);
+      }
     }
-  }, []);
+  }, [handleApiError]);
+  
+  // Throttled version of fetchPopularStocks
+  const throttledFetchPopularStocks = useCallback(
+    throttle(fetchPopularStocksWithRetry, 5000), // 5 saniye throttle
+    [fetchPopularStocksWithRetry]
+  );
+
+  // Component mount'ta sadece bir kez çalışacak şekilde optimize et
+  const [isInitialized, setIsInitialized] = useState(false);
+  
+  useEffect(() => {
+    if (!isInitialized) {
+      // Önce cache'den kontrol et, yoksa API'yi çağır
+      const cachedStocks = apiCache.get('popular-stocks');
+      if (cachedStocks) {
+        setPopularStocks(cachedStocks);
+      } else {
+        // Cache yoksa throttled fetch çağır
+        throttledFetchPopularStocks();
+      }
+      
+      // Son aramaları yükle
+      const savedSearches = localStorage.getItem('recentStockSearches');
+      if (savedSearches) {
+        setRecentSearches(JSON.parse(savedSearches));
+      }
+      
+      setIsInitialized(true);
+    }
+  }, [isInitialized, throttledFetchPopularStocks]);
 
   // Arama önerileri
   useEffect(() => {
@@ -119,9 +282,11 @@ const StockSearch: React.FC<StockSearchProps> = ({ onStockSelect }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleSearch = async (stockCode: string) => {
+  const handleSearchInternal = async (stockCode: string) => {
     if (!stockCode.trim()) {
-      setError('Lütfen bir hisse kodu giriniz');
+      const errorMsg = 'Lütfen bir hisse kodu giriniz';
+      setError(errorMsg);
+      showError(errorMsg);
       return;
     }
 
@@ -129,7 +294,9 @@ const StockSearch: React.FC<StockSearchProps> = ({ onStockSelect }) => {
     
     // Hisse kodu formatını kontrol et
     if (!/^[A-Z0-9]{3,6}$/.test(cleanStockCode)) {
-      setError('Geçersiz hisse kodu formatı (3-6 karakter, sadece harf ve sayı)');
+      const errorMsg = 'Geçersiz hisse kodu formatı (3-6 karakter, sadece harf ve sayı)';
+      setError(errorMsg);
+      showError(errorMsg);
       return;
     }
 
@@ -140,8 +307,29 @@ const StockSearch: React.FC<StockSearchProps> = ({ onStockSelect }) => {
     // Socket.IO ile gerçek zamanlı veri iste
     if (socketRef.current) {
       socketRef.current.emit('subscribe-stock', cleanStockCode);
+      
+      // Timeout ekle
+      setTimeout(() => {
+        if (isLoading) {
+          setIsLoading(false);
+          const timeoutMsg = `${cleanStockCode} için veri alınamadı (zaman aşımı)`;
+          setError(timeoutMsg);
+          showError(timeoutMsg);
+        }
+      }, 15000); // 15 saniye timeout
+    } else {
+      setIsLoading(false);
+      const connectionMsg = 'WebSocket bağlantısı mevcut değil';
+      setError(connectionMsg);
+      showError(connectionMsg);
     }
   };
+  
+  // Throttled search function
+  const handleSearch = useCallback(
+    throttle(handleSearchInternal, 2000), // 2 saniye throttle
+    [isLoading, showError]
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

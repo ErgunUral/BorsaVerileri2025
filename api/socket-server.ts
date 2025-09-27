@@ -33,7 +33,7 @@ const io = new Server(server, {
 const mockStockData = {
   'THYAO': { symbol: 'THYAO', price: 150.25, change: 2.15, changePercent: 1.45 },
   'AKBNK': { symbol: 'AKBNK', price: 27.50, change: -0.30, changePercent: -1.08 },
-  'ASELS': { symbol: 'ASELS', price: 310.45, change: 5.20, changePercent: 1.70 },
+  'ASELS': { symbol: 'ASELS', price: 218.3, change: 5.20, changePercent: 1.70 },
   'SISE': { symbol: 'SISE', price: 24.60, change: -0.40, changePercent: -1.60 },
   'EREGL': { symbol: 'EREGL', price: 32.15, change: 0.80, changePercent: 2.55 },
   'BIMAS': { symbol: 'BIMAS', price: 125.40, change: 3.20, changePercent: 2.62 },
@@ -90,6 +90,9 @@ io.on('connection', (socket) => {
         stockScraper.scrapeStockPrice(upperSymbol),
         stockScraper.scrapeFinancialData(upperSymbol)
       ]);
+      
+      console.log(`${upperSymbol} priceData:`, priceData);
+      console.log(`${upperSymbol} financialData keys:`, financialData ? Object.keys(financialData) : 'null');
       
       if (priceData || financialData) {
         // Finansal veriyi frontend formatına dönüştür
@@ -186,10 +189,9 @@ io.on('connection', (socket) => {
         // Fallback to mock data if scraping fails
         if (mockStockData[upperSymbol]) {
           const baseData = mockStockData[upperSymbol];
-          const randomChange = (Math.random() - 0.5) * 2;
-          const newPrice = baseData.price + randomChange;
-          const priceChange = newPrice - baseData.price;
-          const changePercent = (priceChange / baseData.price) * 100;
+          const newPrice = baseData.price; // Use exact mock price without random changes
+          const priceChange = baseData.change;
+          const changePercent = baseData.changePercent;
           
           // Gerçekçi finansal test verileri - Parent agent tarafından belirtilen değerler
           const mockFinancialData = {

@@ -5,6 +5,7 @@
     "@typescript-eslint/recommended-requiring-type-checking",
     "plugin:react/recommended",
     "plugin:react-hooks/recommended",
+    "plugin:sonarjs/recommended",
     "prettier",
     "plugin:prettier/recommended"
   ],
@@ -21,6 +22,7 @@
     "@typescript-eslint",
     "react",
     "react-hooks",
+    "sonarjs",
     "prettier"
   ],
   "rules": {

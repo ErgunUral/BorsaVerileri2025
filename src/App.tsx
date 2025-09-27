@@ -2,6 +2,8 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { TrendingUp, AlertCircle, Loader2, Database, BarChart3, Calculator, Figma, Activity, Monitor, Zap } from 'lucide-react';
 import ErrorBoundary from './components/ErrorBoundary';
+import ToastContainer from './components/ToastContainer';
+import { useToast } from './hooks/useToast';
 
 // Lazy load components
 const StockSearch = lazy(() => import('./components/StockSearch'));
@@ -44,6 +46,7 @@ function App() {
   const [error, setError] = useState<string>('');
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const [currentView, setCurrentView] = useState<'analysis' | 'dashboard' | 'ratios' | 'figma' | 'detail' | 'realtime' | 'monitoring' | 'real-time-dashboard' | 'realtime-test'>('analysis');
+  const { toasts, removeToast, success, error: showError, handleNetworkStatus } = useToast();
 
   useEffect(() => {
     // Socket.io bağlantısını kur
@@ -54,16 +57,19 @@ function App() {
     newSocket.on('connect', () => {
       console.log('Socket.io bağlantısı kuruldu');
       setConnectionStatus('connected');
+      success('WebSocket bağlantısı kuruldu');
     });
 
     newSocket.on('disconnect', () => {
       console.log('Socket.io bağlantısı kesildi');
       setConnectionStatus('disconnected');
+      showError('WebSocket bağlantısı kesildi');
     });
 
     newSocket.on('connect_error', (error) => {
       console.error('Socket.io bağlantı hatası:', error);
       setConnectionStatus('disconnected');
+      showError('WebSocket bağlantı hatası: ' + error.message);
     });
 
     // Gerçek zamanlı hisse verisi güncellemeleri
@@ -87,6 +93,7 @@ function App() {
     if (!stockData) return;
     
     console.log('App - Seçilen hisse verisi:', stockData);
+    console.log('App - Price objesi:', stockData.price);
     console.log('App - Finansal veriler:', stockData.analysis?.financialData);
     
     setStockData(stockData);
@@ -112,6 +119,20 @@ function App() {
       default: return 'Bilinmiyor';
     }
   };
+
+  // Network status monitoring
+  useEffect(() => {
+    const handleOnline = () => handleNetworkStatus(true);
+    const handleOffline = () => handleNetworkStatus(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [handleNetworkStatus]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -245,7 +266,6 @@ function App() {
             }>
               <StockDetail 
                 stockData={stockData} 
-                onBackToAnalysis={() => setCurrentView('analysis')}
               />
             </Suspense>
           </ErrorBoundary>
@@ -428,6 +448,9 @@ function App() {
           </div>
         </div>
       </footer>
+      
+      {/* Toast Container */}
+      <ToastContainer toasts={toasts} onRemoveToast={removeToast} />
     </div>
   );
 }

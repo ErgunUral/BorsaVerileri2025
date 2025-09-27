@@ -1,0 +1,155 @@
+{
+  "name": "Borsa Verileri 2025 Quality Gate",
+  "description": "Custom quality gate for Borsa Verileri 2025 project with TypeScript/React/Node.js specific rules",
+  "conditions": [
+    {
+      "metric": "new_coverage",
+      "operator": "LT",
+      "threshold": "80",
+      "description": "Coverage on new code should be at least 80%"
+    },
+    {
+      "metric": "new_duplicated_lines_density",
+      "operator": "GT",
+      "threshold": "3",
+      "description": "Duplicated lines on new code should not exceed 3%"
+    },
+    {
+      "metric": "new_maintainability_rating",
+      "operator": "GT",
+      "threshold": "1",
+      "description": "Maintainability rating on new code should be A"
+    },
+    {
+      "metric": "new_reliability_rating",
+      "operator": "GT",
+      "threshold": "1",
+      "description": "Reliability rating on new code should be A"
+    },
+    {
+      "metric": "new_security_rating",
+      "operator": "GT",
+      "threshold": "1",
+      "description": "Security rating on new code should be A"
+    },
+    {
+      "metric": "new_security_hotspots_reviewed",
+      "operator": "LT",
+      "threshold": "100",
+      "description": "All security hotspots on new code should be reviewed"
+    },
+    {
+      "metric": "new_bugs",
+      "operator": "GT",
+      "threshold": "0",
+      "description": "No new bugs should be introduced"
+    },
+    {
+      "metric": "new_vulnerabilities",
+      "operator": "GT",
+      "threshold": "0",
+      "description": "No new vulnerabilities should be introduced"
+    },
+    {
+      "metric": "new_code_smells",
+      "operator": "GT",
+      "threshold": "5",
+      "description": "No more than 5 new code smells should be introduced"
+    },
+    {
+      "metric": "new_technical_debt",
+      "operator": "GT",
+      "threshold": "30min",
+      "description": "Technical debt on new code should not exceed 30 minutes"
+    }
+  ],
+  "typescript_specific_rules": {
+    "no_any_usage": {
+      "enabled": true,
+      "severity": "major",
+      "description": "Avoid using 'any' type in TypeScript"
+    },
+    "explicit_return_types": {
+      "enabled": true,
+      "severity": "minor",
+      "description": "Functions should have explicit return types"
+    },
+    "strict_null_checks": {
+      "enabled": true,
+      "severity": "major",
+      "description": "Strict null checks should be enabled"
+    }
+  },
+  "react_specific_rules": {
+    "hooks_rules": {
+      "enabled": true,
+      "severity": "major",
+      "description": "React hooks rules should be followed"
+    },
+    "jsx_key_prop": {
+      "enabled": true,
+      "severity": "major",
+      "description": "JSX elements in arrays should have key prop"
+    },
+    "component_naming": {
+      "enabled": true,
+      "severity": "minor",
+      "description": "React components should use PascalCase naming"
+    }
+  },
+  "nodejs_specific_rules": {
+    "no_sync_methods": {
+      "enabled": true,
+      "severity": "major",
+      "description": "Avoid synchronous file system methods"
+    },
+    "error_handling": {
+      "enabled": true,
+      "severity": "major",
+      "description": "Proper error handling should be implemented"
+    },
+    "security_best_practices": {
+      "enabled": true,
+      "severity": "blocker",
+      "description": "Security best practices should be followed"
+    }
+  },
+  "exclusions": {
+    "test_files": [
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "**/*.spec.ts",
+      "**/*.spec.tsx",
+      "**/test/**",
+      "**/__tests__/**"
+    ],
+    "build_files": [
+      "**/dist/**",
+      "**/build/**",
+      "**/node_modules/**",
+      "**/*.min.js",
+      "**/coverage/**"
+    ],
+    "config_files": [
+      "**/webpack.config.js",
+      "**/vite.config.ts",
+      "**/tailwind.config.js",
+      "**/postcss.config.js"
+    ]
+  },
+  "coverage_settings": {
+    "minimum_coverage": 80,
+    "coverage_exclusions": [
+      "**/*.d.ts",
+      "**/types/**",
+      "**/interfaces/**",
+      "**/*.config.*"
+    ]
+  },
+  "security_settings": {
+    "vulnerability_threshold": "none",
+    "security_hotspot_threshold": "none",
+    "dependency_check": true,
+    "sensitive_data_detection": true
+  }
+}

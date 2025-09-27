@@ -274,8 +274,8 @@ class StockScraper {
   // HTML'den fiyat çıkarma fonksiyonu
   private extractPriceFromHtml($: any, stockCode: string): StockPrice | null {
     let priceText = '';
-    let changeText = '';
-    let volumeText = '';
+    const changeText = '';
+    const volumeText = '';
     
     // Öncelikli olarak hisse_Son ID'li elementi kontrol et
     const priceSelectors = [
@@ -350,6 +350,7 @@ class StockScraper {
       
       const url = `${this.baseUrl}?hisse=${stockCode.toUpperCase()}`;
       console.log(`${stockCode} için İş Yatırım URL'si: ${url}`);
+      console.log(`${stockCode} baseUrl: ${this.baseUrl}`);
       
       const retryOptions = {
         maxRetries: 2,
@@ -370,9 +371,15 @@ class StockScraper {
         retryOptions
       );
       
+      console.log(`${stockCode} HTTP response status: ${response.status}`);
+      console.log(`${stockCode} response data length: ${response.data.length}`);
+      
       const $ = cheerio.load(response.data);
       
-      return this.extractPriceFromHtml($, stockCode);
+      const result = this.extractPriceFromHtml($, stockCode);
+      console.log(`${stockCode} extractPriceFromHtml sonucu:`, result);
+      
+      return result;
       
     } catch (error: any) {
       console.error(`İş Yatırım fiyat çekme hatası ${stockCode}:`, error.message);
@@ -394,7 +401,7 @@ class StockScraper {
   private getMockStockPrice(stockCode: string): StockPrice {
     // Gerçekçi mock veriler (güncel piyasa fiyatları)
     const mockPrices: { [key: string]: number } = {
-      'ASELS': 12.85,
+      'ASELS': 218.3,
       'THYAO': 285.00,
       'AKBNK': 45.20,
       'BIMAS': 125.80,

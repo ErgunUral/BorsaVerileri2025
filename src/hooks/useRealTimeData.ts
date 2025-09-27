@@ -122,16 +122,28 @@ export const useRealTimeData = (config: RealTimeDataConfig): UseRealTimeDataRetu
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
       
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      
       const response = await fetch('/api/realtime/data/batch', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ symbols })
+        body: JSON.stringify({ symbols }),
+        signal: controller.signal
       });
       
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        if (response.status === 429) {
+          throw new Error('Çok fazla istek gönderildi. Lütfen bekleyin.');
+        } else if (response.status >= 500) {
+          throw new Error('Sunucu hatası. Lütfen daha sonra tekrar deneyin.');
+        } else {
+          throw new Error(`HTTP hatası! Durum: ${response.status}`);
+        }
       }
       
       const result = await response.json();
@@ -181,10 +193,22 @@ export const useRealTimeData = (config: RealTimeDataConfig): UseRealTimeDataRetu
     } catch (error) {
       console.error('Failed to fetch initial data:', error);
       
+      let errorMessage = 'Bilinmeyen hata oluştu';
+      
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          errorMessage = 'İstek zaman aşımına uğradı';
+        } else if (error.message.includes('Failed to fetch')) {
+          errorMessage = 'Ağ bağlantısı hatası. İnternet bağlantınızı kontrol edin.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       setState(prev => ({
         ...prev,
         loading: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred'
+        error: errorMessage
       }));
       
       setMetrics(prev => ({
@@ -192,12 +216,14 @@ export const useRealTimeData = (config: RealTimeDataConfig): UseRealTimeDataRetu
         failedUpdates: prev.failedUpdates + symbols.length
       }));
       
-      // Retry logic
-      retryCountRef.current++;
-      if (retryCountRef.current < (configRef.current.maxRetries || 3)) {
-        setTimeout(() => {
-          fetchInitialData(symbols);
-        }, Math.min(1000 * Math.pow(2, retryCountRef.current), 30000));
+      // Retry logic - don't retry on timeout or network errors
+      if (error?.name !== 'AbortError' && !error?.message?.includes('Failed to fetch')) {
+        retryCountRef.current++;
+        if (retryCountRef.current < (configRef.current.maxRetries || 3)) {
+          setTimeout(() => {
+            fetchInitialData(symbols);
+          }, Math.min(1000 * Math.pow(2, retryCountRef.current), 30000));
+        }
       }
     }
   }, [updateResponseTime]);

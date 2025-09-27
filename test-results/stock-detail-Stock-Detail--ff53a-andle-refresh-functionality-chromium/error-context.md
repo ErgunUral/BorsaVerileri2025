@@ -140,7 +140,7 @@
           - generic [ref=e178]:
             - generic [ref=e181]:
               - text: 1 oran hesaplandı
-              - generic [ref=e182]: • 20:57:48
+              - generic [ref=e182]: • 15:20:21
             - generic [ref=e184]:
               - generic [ref=e185]:
                 - heading "Borç Oranı" [level=4] [ref=e186]

@@ -30,20 +30,24 @@ const RealTimePriceDisplay: React.FC<RealTimePriceDisplayProps> = ({
   const [autoRefreshPaused, setAutoRefreshPaused] = useState(false);
 
   const fetchStockPrice = async () => {
+    if (!stockCode) return;
+    
+    setLoading(true);
+    setError(null);
+    
     try {
-      setLoading(true);
-      setError(null);
+      const response = await fetch(`/api/stocks/data/${stockCode}`);
+      const result = await response.json();
       
-      const response = await throttledApiCall(`/api/stocks/data/${stockCode}`);
-      
-      if (response.success && response.data) {
+      if (result.success && result.data) {
+        
         setStockData({
-          symbol: response.data.symbol || stockCode,
-          name: response.data.name || stockCode,
-          price: parseFloat(response.data.price) || 0,
-          change: parseFloat(response.data.change) || 0,
-          changePercent: parseFloat(response.data.changePercent) || 0,
-          lastUpdate: response.data.lastUpdate || new Date().toISOString()
+          symbol: result.data.symbol || stockCode,
+          name: result.data.name || stockCode,
+          price: parseFloat(result.data.price) || 0,
+          change: parseFloat(result.data.change) || 0,
+          changePercent: parseFloat(result.data.changePercent) || 0,
+          lastUpdate: result.data.lastUpdate || new Date().toISOString()
         });
         setLastRefresh(new Date());
       } else {

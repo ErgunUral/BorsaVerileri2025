@@ -1,0 +1,240 @@
+name: Code Quality Analysis
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run weekly security audit
+    - cron: '0 2 * * 1'
+
+jobs:
+  code-quality:
+    name: Code Quality & Security Analysis
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Shallow clones should be disabled for better analysis
+    
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: |
+        npm ci
+        npm install -g sonarqube-scanner
+    
+    - name: TypeScript Type Check
+      run: npx tsc --noEmit --skipLibCheck
+    
+    - name: ESLint Analysis
+      run: |
+        npx eslint . --ext .ts,.tsx,.js,.jsx --format json --output-file eslint-report.json
+        npx eslint . --ext .ts,.tsx,.js,.jsx --format @microsoft/eslint-formatter-sarif --output-file eslint-results.sarif
+      continue-on-error: true
+    
+    - name: Security Audit
+      run: |
+        npm audit --json > security-audit-report.json || true
+        npm audit --audit-level high
+      continue-on-error: true
+    
+    - name: Run Tests with Coverage
+      run: |
+        npm run test:coverage
+        npm run test:e2e
+      env:
+        CI: true
+    
+    - name: SonarQube Analysis
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      run: |
+        sonar-scanner \
+          -Dsonar.projectKey=BorsaVerileri2025 \
+          -Dsonar.sources=src,api \
+          -Dsonar.tests=src/__tests__,api/__tests__ \
+          -Dsonar.typescript.lcov.reportPaths=coverage/lcov.info \
+          -Dsonar.eslint.reportPaths=eslint-report.json \
+          -Dsonar.coverage.exclusions="**/*.test.ts,**/*.test.tsx,**/*.spec.ts,**/*.spec.tsx" \
+          -Dsonar.exclusions="**/node_modules/**,**/dist/**,**/build/**,**/*.min.js,**/coverage/**" \
+          -Dsonar.sourceEncoding=UTF-8
+      if: env.SONAR_TOKEN != ''
+    
+    - name: Upload ESLint results to GitHub
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: eslint-results.sarif
+      if: always()
+    
+    - name: Upload Coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage/lcov.info
+        flags: unittests
+        name: codecov-umbrella
+      if: matrix.node-version == '20.x'
+    
+    - name: Archive Code Quality Reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: code-quality-reports-node-${{ matrix.node-version }}
+        path: |
+          eslint-report.json
+          eslint-results.sarif
+          security-audit-report.json
+          coverage/
+          code-quality-analysis-report.md
+      if: always()
+    
+    - name: Comment PR with Quality Report
+      uses: actions/github-script@v7
+      if: github.event_name == 'pull_request'
+      with:
+        script: |
+          const fs = require('fs');
+          
+          // Read ESLint report
+          let eslintReport = '';
+          try {
+            const eslintData = JSON.parse(fs.readFileSync('eslint-report.json', 'utf8'));
+            const totalErrors = eslintData.reduce((sum, file) => sum + file.errorCount, 0);
+            const totalWarnings = eslintData.reduce((sum, file) => sum + file.warningCount, 0);
+            eslintReport = `📊 **ESLint Results**: ${totalErrors} errors, ${totalWarnings} warnings`;
+          } catch (e) {
+            eslintReport = '❌ ESLint report not found';
+          }
+          
+          // Read Security audit report
+          let securityReport = '';
+          try {
+            const securityData = JSON.parse(fs.readFileSync('security-audit-report.json', 'utf8'));
+            const vulnerabilities = securityData.metadata?.vulnerabilities;
+            if (vulnerabilities) {
+              const total = vulnerabilities.total || 0;
+              const critical = vulnerabilities.critical || 0;
+              const high = vulnerabilities.high || 0;
+              securityReport = `🔒 **Security Audit**: ${total} vulnerabilities (${critical} critical, ${high} high)`;
+            }
+          } catch (e) {
+            securityReport = '❌ Security audit report not found';
+          }
+          
+          const comment = `## 🔍 Code Quality Analysis Results
+          
+          ${eslintReport}
+          ${securityReport}
+          
+          📈 **Coverage Report**: Check the artifacts for detailed coverage information
+          
+          🔧 **SonarQube Analysis**: ${process.env.SONAR_TOKEN ? 'Completed' : 'Skipped (no token)'}
+          
+          ---
+          
+          💡 **Tip**: Review the uploaded artifacts for detailed reports and fix any critical issues before merging.
+          `;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Dependency Review
+      uses: actions/dependency-review-action@v4
+      with:
+        fail-on-severity: high
+        allow-licenses: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-results.sarif'
+      if: always()
+
+  quality-gate:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    needs: [code-quality]
+    if: always()
+    
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: code-quality-reports-node-20.x
+    
+    - name: Quality Gate Check
+      run: |
+        echo "🚦 Quality Gate Evaluation"
+        
+        # Check ESLint results
+        if [ -f "eslint-report.json" ]; then
+          ERRORS=$(jq '[.[].errorCount] | add' eslint-report.json)
+          echo "ESLint Errors: $ERRORS"
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "❌ Quality Gate FAILED: ESLint errors found"
+            exit 1
+          fi
+        fi
+        
+        # Check security vulnerabilities
+        if [ -f "security-audit-report.json" ]; then
+          CRITICAL=$(jq '.metadata.vulnerabilities.critical // 0' security-audit-report.json)
+          HIGH=$(jq '.metadata.vulnerabilities.high // 0' security-audit-report.json)
+          echo "Security: $CRITICAL critical, $HIGH high vulnerabilities"
+          if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 5 ]; then
+            echo "❌ Quality Gate FAILED: Critical security vulnerabilities found"
+            exit 1
+          fi
+        fi
+        
+        echo "✅ Quality Gate PASSED"
+    
+    - name: Update Status
+      if: always()
+      run: |
+        if [ $? -eq 0 ]; then
+          echo "QUALITY_GATE_STATUS=passed" >> $GITHUB_ENV
+        else
+          echo "QUALITY_GATE_STATUS=failed" >> $GITHUB_ENV
+        fi
