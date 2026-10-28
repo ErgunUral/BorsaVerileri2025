@@ -41,7 +41,7 @@ const StockSearch: React.FC<StockSearchProps> = ({ onStockSelect }) => {
 
   // Socket.IO bağlantısı
   useEffect(() => {
-    socketRef.current = io('http://localhost:9876');
+    socketRef.current = io(window.location.origin);
     
     socketRef.current.on('stock-data', (data: StockData) => {
       setIsLoading(false);
@@ -73,10 +73,14 @@ const StockSearch: React.FC<StockSearchProps> = ({ onStockSelect }) => {
         const response = await fetch('/api/stocks/popular');
         if (response.ok) {
           const data = await response.json();
-          setPopularStocks(data.stocks || []);
+          setPopularStocks((data && (data.data || data.stocks)) || []);
         }
       } catch (error) {
         console.error('Popüler hisseler yüklenemedi:', error);
+        setPopularStocks([
+          'THYAO', 'AKBNK', 'BIMAS', 'TCELL', 'EREGL',
+          'KCHOL', 'ASELS', 'SISE', 'PETKM', 'KOZAL'
+        ]);
       }
     };
 

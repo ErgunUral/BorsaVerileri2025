@@ -1,5 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, DollarSign, BarChart3, PieChart, Target, Calculator, Settings, RefreshCw } from 'lucide-react';
+import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, DollarSign, BarChart3, PieChart, Target, Calculator, Settings, RefreshCw, Star, Plus, Bell, StickyNote, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { usePortfolioStore } from '../store/portfolioStore';
 
 interface StockData {
   stockCode: string;
@@ -93,6 +95,24 @@ interface StockAnalysisProps {
 
 const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
   const { analysis, price } = stockData;
+  const navigate = useNavigate();
+
+  const { toggleFavorite, isFavorite, addItem, addAlert, addNote } = usePortfolioStore();
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [showQuickAlert, setShowQuickAlert] = useState(false);
+  const [showQuickNote, setShowQuickNote] = useState(false);
+  const [qaQty, setQaQty] = useState('');
+  const [qaPrice, setQaPrice] = useState(price?.price ? String(price.price) : '');
+  const [qaTarget, setQaTarget] = useState(price?.price ? String(price.price) : '');
+  const [qaDirection, setQaDirection] = useState<'above' | 'below'>('above');
+  const [qaNote, setQaNote] = useState('');
+
+  useEffect(() => {
+    if (price?.price) {
+      setQaPrice(String(price.price));
+      setQaTarget(String(price.price));
+    }
+  }, [price?.price]);
   
   // Finansal veri alanları tanımı
   const financialDataFields: FinancialDataField[] = [
@@ -544,60 +564,279 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
 
   return (
     <div className="space-y-6">
-      {/* Başlık ve Genel Bilgiler */}
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{analysis.stockCode}</h1>
-            <p className="text-gray-600">{analysis.companyName}</p>
-          </div>
-          <div className="text-right">
-            {price && (
-              <div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {formatCurrency(price.price)}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="p-6">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-5">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2">
+                {analysis.stockCode}
+                <button
+                  onClick={() => toggleFavorite(analysis.stockCode)}
+                  className="ml-1 text-gray-300 hover:text-yellow-500 transition-colors"
+                  title={isFavorite(analysis.stockCode) ? 'Favorilerden kaldır' : 'Favorilere ekle'}
+                >
+                  <Star
+                    className={`h-6 w-6 ${isFavorite(analysis.stockCode) ? 'text-yellow-500 fill-yellow-500' : ''}`}
+                  />
+                </button>
+              </h1>
+              <p className="text-gray-600 mt-0.5">{analysis.companyName}</p>
+            </div>
+            <div className="text-right">
+              {price && (
+                <div>
+                  <div className="text-3xl font-bold text-gray-900 tabular-nums">
+                    {formatCurrency(price.price)}
+                  </div>
+                  <div className={`inline-flex items-center gap-1 mt-1 px-2.5 py-1 rounded-lg ${
+                    price.changePercent >= 0
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'bg-rose-50 text-rose-700'
+                  }`}>
+                    {getChangeIcon(price.changePercent)}
+                    <span className="font-semibold tabular-nums">
+                      {price.changePercent >= 0 ? '+' : ''}
+                      {price.changePercent.toFixed(2)}%
+                    </span>
+                  </div>
                 </div>
-                <div className={`flex items-center justify-end space-x-1 ${
-                  price.changePercent >= 0 ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  {getChangeIcon(price.changePercent)}
-                  <span className="font-medium">
-                    {price.changePercent >= 0 ? '+' : ''}{price.changePercent.toFixed(2)}%
-                  </span>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 mb-5">
+            <div className={`p-4 rounded-xl border ${getRiskColor(analysis.riskLevel)}`}>
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <AlertTriangle className="h-4 w-4" />
+                Risk Seviyesi
+              </div>
+              <div className="text-lg font-bold mt-1">{analysis.riskLevel}</div>
+            </div>
+            <div className="p-4 rounded-xl border border-blue-200 bg-blue-50">
+              <div className="flex items-center gap-2 text-sm font-medium text-blue-700">
+                <Target className="h-4 w-4" />
+                Yatırım Skoru
+              </div>
+              <div className={`text-lg font-bold mt-1 ${getScoreColor(analysis.investmentScore)}`}>
+                {analysis.investmentScore}/100
+              </div>
+            </div>
+            <div className="p-4 rounded-xl border border-purple-200 bg-purple-50">
+              <div className="flex items-center gap-2 text-sm font-medium text-purple-700">
+                <PieChart className="h-4 w-4" />
+                Bedelsiz Potansiyel
+              </div>
+              <div className="text-lg font-bold mt-1 text-purple-700">
+                {analysis.ratios.bonusPotential.bonusScore}/100
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
+            <button
+              onClick={() => {
+                setShowQuickAdd(true);
+                setQaPrice(price?.price ? String(price.price) : '');
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+            >
+              <Plus className="h-4 w-4" />
+              Portföye Ekle
+            </button>
+            <button
+              onClick={() => {
+                setShowQuickAlert(true);
+                setQaTarget(price?.price ? String(price.price) : '');
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 rounded-lg text-sm font-medium transition-colors"
+            >
+              <Bell className="h-4 w-4" />
+              Fiyat Uyarısı
+            </button>
+            <button
+              onClick={() => setShowQuickNote(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-sm font-medium transition-colors"
+            >
+              <StickyNote className="h-4 w-4" />
+              Not Ekle
+            </button>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-lg text-sm font-medium transition-colors"
+            >
+              Dashboard&apos;a Git →
+            </button>
+          </div>
+
+          {showQuickAdd && (
+            <QuickPanel onClose={() => setShowQuickAdd(false)} title="Portföye Hızlı Ekle">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Adet <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={qaQty}
+                    onChange={(e) => setQaQty(e.target.value)}
+                    placeholder="100"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm tabular-nums focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Maliyet (₺) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={0.01}
+                    step="any"
+                    value={qaPrice}
+                    onChange={(e) => setQaPrice(e.target.value)}
+                    placeholder="250.50"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm tabular-nums focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
                 </div>
               </div>
-            )}
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className={`p-4 rounded-lg border ${getRiskColor(analysis.riskLevel)}`}>
-            <div className="flex items-center space-x-2">
-              <AlertTriangle className="h-5 w-5" />
-              <span className="font-medium">Risk Seviyesi</span>
-            </div>
-            <div className="text-lg font-bold mt-1">{analysis.riskLevel}</div>
-          </div>
-          
-          <div className="p-4 rounded-lg border border-blue-200 bg-blue-50">
-            <div className="flex items-center space-x-2 text-blue-600">
-              <Target className="h-5 w-5" />
-              <span className="font-medium">Yatırım Skoru</span>
-            </div>
-            <div className={`text-lg font-bold mt-1 ${getScoreColor(analysis.investmentScore)}`}>
-              {analysis.investmentScore}/100
-            </div>
-          </div>
-          
-          <div className="p-4 rounded-lg border border-purple-200 bg-purple-50">
-            <div className="flex items-center space-x-2 text-purple-600">
-              <PieChart className="h-5 w-5" />
-              <span className="font-medium">Bedelsiz Potansiyel</span>
-            </div>
-            <div className="text-lg font-bold mt-1 text-purple-600">
-              {analysis.ratios.bonusPotential.bonusScore}/100
-            </div>
-          </div>
+              <div className="flex items-center justify-end gap-2 mt-4 pt-4 border-t border-gray-100">
+                <button
+                  onClick={() => setShowQuickAdd(false)}
+                  className="px-3.5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={() => {
+                    const qty = Number(qaQty);
+                    const px = Number(qaPrice);
+                    if (!qty || qty <= 0 || !px || px <= 0) return;
+                    addItem({
+                      stockCode: analysis.stockCode,
+                      companyName: analysis.companyName,
+                      quantity: qty,
+                      avgPrice: px,
+                      currentPrice: price?.price,
+                    });
+                    setShowQuickAdd(false);
+                    setQaQty('');
+                  }}
+                  disabled={!qaQty || Number(qaQty) <= 0 || !qaPrice || Number(qaPrice) <= 0}
+                  className="px-3.5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg inline-flex items-center gap-1.5"
+                >
+                  <Plus className="h-4 w-4" />
+                  Ekle
+                </button>
+              </div>
+            </QuickPanel>
+          )}
+
+          {showQuickAlert && (
+            <QuickPanel onClose={() => setShowQuickAlert(false)} title="Fiyat Uyarısı Ekle">
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                {(['above', 'below'] as const).map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setQaDirection(d)}
+                    className={`py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      qaDirection === d
+                        ? d === 'above'
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                          : 'bg-rose-50 border-rose-300 text-rose-700'
+                        : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    {d === 'above' ? '↑ Fiyat üstünde' : '↓ Fiyat altında'}
+                  </button>
+                ))}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Hedef Fiyat (₺)</label>
+                <input
+                  type="number"
+                  min={0.01}
+                  step="any"
+                  value={qaTarget}
+                  onChange={(e) => setQaTarget(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm tabular-nums focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              {price?.price && (
+                <div className="flex gap-2 mt-2">
+                  {[0.9, 0.95, 1.05, 1.1].map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setQaTarget(String(Number((price.price * m).toFixed(2))))}
+                      className="px-2 py-1 text-xs bg-gray-50 hover:bg-gray-100 rounded-md font-semibold text-gray-700 border border-gray-200"
+                    >
+                      %{((m - 1) * 100).toFixed(0)}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center justify-end gap-2 mt-4 pt-4 border-t border-gray-100">
+                <button
+                  onClick={() => setShowQuickAlert(false)}
+                  className="px-3.5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={() => {
+                    const tp = Number(qaTarget);
+                    if (!qaTarget || tp <= 0) return;
+                    addAlert({
+                      stockCode: analysis.stockCode,
+                      targetPrice: tp,
+                      direction: qaDirection,
+                    });
+                    setShowQuickAlert(false);
+                  }}
+                  disabled={!qaTarget || Number(qaTarget) <= 0}
+                  className="px-3.5 py-2 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg inline-flex items-center gap-1.5"
+                >
+                  <Bell className="h-4 w-4" />
+                  Ekle
+                </button>
+              </div>
+            </QuickPanel>
+          )}
+
+          {showQuickNote && (
+            <QuickPanel onClose={() => setShowQuickNote(false)} title="Not Ekle">
+              <textarea
+                rows={4}
+                value={qaNote}
+                onChange={(e) => setQaNote(e.target.value)}
+                placeholder={`${analysis.stockCode} hakkındaki notunuz...`}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+              />
+              <div className="flex items-center justify-end gap-2 mt-4 pt-4 border-t border-gray-100">
+                <button
+                  onClick={() => setShowQuickNote(false)}
+                  className="px-3.5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={() => {
+                    const note = qaNote.trim();
+                    if (!note) return;
+                    addNote({ stockCode: analysis.stockCode, content: note });
+                    setShowQuickNote(false);
+                    setQaNote('');
+                  }}
+                  disabled={!qaNote.trim()}
+                  className="px-3.5 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg inline-flex items-center gap-1.5"
+                >
+                  <StickyNote className="h-4 w-4" />
+                  Kaydet
+                </button>
+              </div>
+            </QuickPanel>
+          )}
         </div>
       </div>
 
@@ -927,7 +1166,9 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
                         <div className="flex flex-wrap gap-2 mb-3">
                           {selectedFields.map((fieldKey) => {
                             const field = financialDataFields.find(f => f.key === fieldKey);
-                            const value = stockData ? stockData[fieldKey as keyof typeof stockData] : 0;
+                            const value = stockData.analysis?.financialData
+                              ? (stockData.analysis.financialData[fieldKey as keyof typeof stockData.analysis.financialData] as number)
+                              : 0;
                             return (
                               <div key={fieldKey} className="px-3 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm">
                                 <div className="font-medium">{field?.label}</div>
@@ -952,7 +1193,9 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
                           {selectedFields.map((fieldKey) => {
                             const field = financialDataFields.find(f => f.key === fieldKey);
-                            const value = stockData ? stockData[fieldKey as keyof typeof stockData] : 0;
+                            const value = stockData.analysis?.financialData
+                              ? (stockData.analysis.financialData[fieldKey as keyof typeof stockData.analysis.financialData] as number)
+                              : 0;
                             return (
                               <div key={fieldKey} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
                                 <div className="text-sm font-medium text-gray-900">{field?.label}</div>
@@ -971,17 +1214,22 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {selectedFields.length >= 2 && (() => {
                               const results = [];
+                              const finData = stockData.analysis?.financialData;
                               for (let i = 0; i < selectedFields.length; i++) {
                                 for (let j = i + 1; j < selectedFields.length; j++) {
                                   const field1 = financialDataFields.find(f => f.key === selectedFields[i]);
                                   const field2 = financialDataFields.find(f => f.key === selectedFields[j]);
-                                  const value1 = stockData ? stockData[selectedFields[i] as keyof typeof stockData] : 0;
-                                  const value2 = stockData ? stockData[selectedFields[j] as keyof typeof stockData] : 0;
-                                  
+                                  const value1 = finData
+                                    ? (finData[selectedFields[i] as keyof typeof finData] as number)
+                                    : 0;
+                                  const value2 = finData
+                                    ? (finData[selectedFields[j] as keyof typeof finData] as number)
+                                    : 0;
+
                                   if (typeof value1 === 'number' && typeof value2 === 'number' && value2 !== 0) {
                                     const ratio = value1 / value2;
-                                    const percentage = (ratio * 100);
-                                    
+                                    const percentage = ratio * 100;
+
                                     results.push(
                                       <div key={`${i}-${j}`} className="p-3 bg-gray-50 rounded-lg border">
                                         <div className="text-sm font-medium text-gray-900 mb-1">
@@ -1427,5 +1675,30 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ stockData }) => {
     </div>
   );
 };
+
+function QuickPanel({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mt-4 bg-gradient-to-br from-gray-50 to-slate-50 border border-gray-200 rounded-xl p-5 animate-in fade-in slide-in-from-top-2 duration-200">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-semibold text-gray-900">{title}</h3>
+        <button
+          onClick={onClose}
+          className="p-1 text-gray-400 hover:text-gray-600 hover:bg-white rounded-md transition-colors"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      {children}
+    </div>
+  );
+}
 
 export default StockAnalysis;

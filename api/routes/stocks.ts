@@ -9,16 +9,15 @@ const financialCalculator = new FinancialCalculator();
 
 // Rate limiting
 const rateLimiter = new RateLimiterMemory({
-  keyGenerator: (req) => req.ip,
-  points: 100, // İstek sayısı
-  duration: 900, // 15 dakika (saniye cinsinden)
+  points: 100,
+  duration: 900,
 });
 
 const rateLimitMiddleware = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   try {
-    await rateLimiter.consume(req.ip);
+    await rateLimiter.consume(req.ip || 'unknown');
     next();
-  } catch (rejRes) {
+  } catch {
     res.status(429).json({ error: 'Çok fazla istek gönderildi, lütfen daha sonra tekrar deneyin.' });
   }
 };

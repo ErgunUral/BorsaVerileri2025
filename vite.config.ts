@@ -29,8 +29,12 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://localhost:9876',
+        changeOrigin: true
+      },
+      '/socket.io': {
+        target: 'http://localhost:9876',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '')
+        ws: true
       }
     }
   }
